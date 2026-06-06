@@ -1,0 +1,30 @@
+:root{
+	--bg: #0f1724;
+	--card: #0b1220;
+	--muted: #94a3b8;
+	--accent: #7c3aed;
+	--surface: #0b1220;
+	--glass: rgba(255,255,255,0.03);
+}
+html,body,#root { height:100%; margin:0; font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: linear-gradient(180deg,#071027 0%, #07101a 100%); color:#e6eef8 }
+
+.app { max-width:1100px; margin:28px auto; padding:20px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); box-shadow: 0 6px 30px rgba(2,6,23,0.7); }
+.header { display:flex; align-items:center; justify-content:space-between }
+.brand { font-size:20px; font-weight:700; color:var(--accent) }
+.controls { display:flex; gap:8px; align-items:center }
+.btn { background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; padding:8px 12px; border-radius:8px; cursor:pointer }
+.btn.primary { background:linear-gradient(90deg,var(--accent), #4f46e5); box-shadow: 0 6px 18px rgba(124,58,237,0.18); color:white }
+.btn.warn { background: linear-gradient(90deg,#f59e0b,#f97316); color:white }
+.btn.danger { background: linear-gradient(90deg,#ef4444,#dc2626); color:white }
+.small { font-size:13px; color:var(--muted) }
+.card { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border-radius:10px; padding:12px; box-shadow: 0 4px 18px rgba(2,6,23,0.6); }
+.month-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:10px }
+.day-cell { border-radius:8px; padding:8px; min-height:86px; background:transparent; border:1px solid rgba(255,255,255,0.03) }
+.day-cell.outside { opacity:0.45 }
+.day-number { font-size:13px; font-weight:600 }
+.today { outline: 2px dashed rgba(124,58,237,0.4); }
+.occ-item { background: rgba(124,58,237,0.08); padding:3px 6px; border-radius:6px; margin-bottom:4px; font-size:12px; color:#dfe7ff }
+.login-input { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; margin-right:8px }
+
+.confirm-box { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); padding:10px; border-radius:8px; display:flex; gap:8px; align-items:center }
+.btn .icon { margin-right:6px }
