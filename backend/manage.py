@@ -2,6 +2,7 @@
 import os
 import sys
 
+#!/usr/bin/env python
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'taskmanager.settings')
     try:
