@@ -4,6 +4,8 @@ type Occurrence = {
   task_id: string
   title: string
   date: string
+  status?: string
+  is_recurring?: boolean
 }
 
 function startOfMonth(d: Date) {
@@ -32,7 +34,7 @@ function toYMD(d: Date) {
   }
 }
 
-export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void }) {
+export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void }) {
   const base = monthDate || new Date()
   const start = startOfMonth(base)
   const startWeekDay = start.getDay() // 0=Sun
@@ -76,7 +78,23 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
               </div>
               <div style={{marginTop:8}}>
                 {items.slice(0,3).map(it => (
-                  <div key={it.task_id + it.date} className="occ-item" onClick={(e)=>{ e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date); else console.debug('MonthView: onOccurrenceClick not a function', typeof onOccurrenceClick) }}>{it.title}</div>
+                  <div key={it.task_id + it.date} className="occ-item" style={{display:'flex', alignItems:'center', gap:8}}>
+                    <input
+                      type="checkbox"
+                      checked={it.status === 'DONE'}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => {
+                        e.stopPropagation()
+                        if (typeof onToggleStatus === 'function') onToggleStatus(it.task_id, it.date, Boolean(it.is_recurring), e.target.checked)
+                      }}
+                    />
+                    <div
+                      style={{flex:1, textDecoration: it.status === 'DONE' ? 'line-through' : 'none', cursor:'pointer'}}
+                      onClick={e => { e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date) }}
+                    >
+                      {it.title}
+                    </div>
+                  </div>
                 ))}
                 {items.length > 3 && <div className="small">+{items.length - 3} more</div>}
               </div>

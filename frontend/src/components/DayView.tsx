@@ -1,78 +1,88 @@
 import React from 'react'
 
-export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenceClick, onRangeSelect, persistentSelection }: any) {
-  const d = dayDate ? new Date(dayDate) : new Date()
-  const key = d.toISOString().slice(0,10)
-  const hours = Array.from({length:24}).map((_,i)=>i)
-  const items = (occurrences||[]).filter((o:any)=> o.date.startsWith(key))
-  // drag selection
-  const [dragging, setDragging] = React.useState(false)
-  const [dragStart, setDragStart] = React.useState<string | null>(null)
-  const [hoverSlot, setHoverSlot] = React.useState<string | null>(null)
+const PRIORITIES = [
+  { key: 'CRITICAL', label: 'Critical' },
+  { key: 'IMPORTANT', label: 'Important' },
+  { key: 'ROUTINE', label: 'Routine' },
+]
 
-  function handleMouseDown(slotKey: string) {
-    setDragging(true)
-    setDragStart(slotKey)
+function formatTime(iso: string) {
+  try {
+    const d = new Date(iso)
+    if (d.getHours() === 0 && d.getMinutes() === 0) return ''
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
   }
+}
 
-  function handleMouseUp(slotKey: string) {
-    if (dragging && dragStart) {
-      // compute inclusive end (add 1 hour to end slot)
-      const s = new Date(dragStart)
-      const e = new Date(slotKey)
-      const startIso = s.toISOString()
-      const endInclusive = new Date(Math.max(s.getTime(), e.getTime()) + 60*60*1000)
-      const endIso = endInclusive.toISOString()
-      if (onRangeSelect) {
-        onRangeSelect(startIso, endIso)
-      } else {
-        onSlotClick && onSlotClick(startIso)
-      }
-    }
-    setDragging(false)
-    setDragStart(null)
-  }
+function buildDefaultDate(dayDate?: string) {
+  return dayDate || ''
+}
 
-  function handleMouseEnter(slotKey: string) {
-    if (dragging) setHoverSlot(slotKey)
-  }
+export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenceClick, onToggleStatus }: any) {
+  const date = dayDate ? new Date(dayDate) : new Date()
+  const key = date.toISOString().slice(0, 10)
+  const defaultDate = buildDefaultDate(key)
+  const items = (occurrences || []).filter((o: any) => typeof o.date === 'string' && o.date.startsWith(key))
+
+  const grouped = PRIORITIES.reduce((acc, priority) => {
+    acc[priority.key] = items
+      .filter((o: any) => o.priority === priority.key)
+      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    return acc
+  }, {} as Record<string, any[]>)
 
   return (
     <div className="card">
-      <h4 style={{marginTop:0}}>{d.toDateString()}</h4>
-      <div style={{display:'grid', gridTemplateColumns:'120px 1fr', gap:8}}>
-        <div style={{display:'flex', flexDirection:'column'}}>
-          {hours.map(h=> <div key={h} style={{height:48, color:'#98a8c7'}}>{String(h).padStart(2,'0')}:00</div>)}
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div>
-          {hours.map(h=>{
-            const slotKey = `${key}T${String(h).padStart(2,'0')}:00:00`
-            const item = items.find((it:any)=> it.date.startsWith(key + 'T' + String(h).padStart(2,'0')))
-            const slotDate = new Date(slotKey)
-            let selected = false
-            if (persistentSelection && persistentSelection.start && persistentSelection.end) {
-              const ps = new Date(persistentSelection.start).getTime()
-              const pe = new Date(persistentSelection.end).getTime()
-              if (slotDate.getTime() >= ps && slotDate.getTime() < pe) selected = true
-            } else if (dragging && dragStart) {
-              const a = new Date(dragStart)
-              const b = new Date(hoverSlot || slotKey)
-              const startMs = Math.min(a.getTime(), b.getTime())
-              const endMs = Math.max(a.getTime(), b.getTime()) + 60*60*1000
-              if (slotDate.getTime() >= startMs && slotDate.getTime() < endMs) selected = true
-            }
-            return (
-              <div key={slotKey}
-                onMouseDown={()=>handleMouseDown(slotKey)}
-                onMouseUp={()=>handleMouseUp(slotKey)}
-                onMouseEnter={()=>handleMouseEnter(slotKey)}
-                onClick={()=> item ? (onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)) : (onSlotClick && onSlotClick(slotKey))}
-                style={{height:48, padding:6, borderBottom:'1px dashed rgba(255,255,255,0.02)', background: selected ? 'rgba(20,90,150,0.18)' : undefined}}>
-                {item ? <div className="occ-item" style={{fontSize:12}}>{item.title}</div> : null}
-              </div>
-            )
-          })}
+          <h3 style={{ margin: 0 }}>Day view</h3>
+          <div className="small">{date.toDateString()}</div>
         </div>
+        <button className="btn primary" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate)}>
+          Add task for today
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+        {PRIORITIES.map(priority => {
+          const sectionItems = grouped[priority.key] || []
+          return (
+            <div key={priority.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{priority.label}</div>
+                  <div className="small">{sectionItems.length} tasks</div>
+                </div>
+                <button className="btn" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate)}>
+                  New
+                </button>
+              </div>
+              {sectionItems.length === 0 ? (
+                <div className="small">No tasks in this priority yet.</div>
+              ) : (
+                sectionItems.map((item: any) => (
+                  <div key={item.task_id + item.date} style={{ display: 'flex', alignItems: 'center', gap: 8, padding:'8px', borderRadius:10, background:'rgba(255,255,255,0.02)', marginBottom:6 }}>
+                    <input
+                      type="checkbox"
+                      checked={item.status === 'DONE'}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => {
+                        e.stopPropagation()
+                        if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, item.date, Boolean(item.is_recurring), e.target.checked)
+                      }}
+                    />
+                    <div style={{ flex: 1, display:'flex', justifyContent:'space-between', cursor:'pointer' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
+                      <span>{formatTime(item.date)}</span>
+                      <span style={{ marginLeft: 8, flex: 1, textDecoration: item.status === 'DONE' ? 'line-through' : 'none' }}>{item.title}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -12,7 +12,9 @@ html,body,#root { height:100%; margin:0; font-family: Inter, system-ui, -apple-s
 .header { display:flex; align-items:center; justify-content:space-between }
 .brand { font-size:20px; font-weight:700; color:var(--accent) }
 .controls { display:flex; gap:8px; align-items:center }
-.btn { background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; padding:8px 12px; border-radius:8px; cursor:pointer }
+.btn { background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; padding:8px 12px; border-radius:8px; cursor:pointer; transition: transform .15s ease, border-color .15s ease, background .15s ease }
+.btn:hover { transform: translateY(-1px); }
+.btn.active { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.35); }
 .btn.primary { background:linear-gradient(90deg,var(--accent), #4f46e5); box-shadow: 0 6px 18px rgba(124,58,237,0.18); color:white }
 .btn.warn { background: linear-gradient(90deg,#f59e0b,#f97316); color:white }
 .btn.danger { background: linear-gradient(90deg,#ef4444,#dc2626); color:white }

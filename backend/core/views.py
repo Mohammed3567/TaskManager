@@ -8,11 +8,13 @@ from .utils import expand_recurring_tasks
 from rest_framework.views import APIView
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
+from django.middleware.csrf import get_token
+from rest_framework.exceptions import ValidationError
 from .serializers import UserSerializer, RegisterSerializer
 from .serializers import RecurrenceExceptionSerializer
 from .models import RecurrenceException
 
-
+#testing
 class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -20,6 +22,7 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        get_token(request)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -33,6 +36,7 @@ class LoginView(APIView):
         if user is None:
             return Response({'detail': 'invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         login(request, user)
+        get_token(request)
         return Response(UserSerializer(user).data)
 
 
@@ -48,7 +52,16 @@ class MeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
+        get_token(request)
         return Response(UserSerializer(request.user).data)
+
+
+class CsrfTokenView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        token = get_token(request)
+        return Response({'csrfToken': token})
 
 
 class IsOwner(permissions.BasePermission):
@@ -65,6 +78,35 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def _parse_occurrence(self, request):
+        occurrence = request.query_params.get('occurrence') or request.data.get('occurrence_date')
+        if not occurrence:
+            raise ValidationError('occurrence query parameter or occurrence_date field required')
+        if ' ' in occurrence and 'T' in occurrence:
+            occurrence = occurrence.replace(' ', '+')
+        occ_dt = parse_datetime(occurrence)
+        if occ_dt is None:
+            raise ValidationError('invalid occurrence datetime')
+        return occ_dt
+
+    def _save_instance_exception(self, task, request, delete_only=False):
+        if not task.is_recurring:
+            raise ValidationError('cannot manage instance exceptions for non-recurring tasks')
+        occ_dt = self._parse_occurrence(request)
+        exception, _ = RecurrenceException.objects.get_or_create(task=task, occurrence_date=occ_dt)
+        if delete_only:
+            exception.is_deleted = True
+            exception.override_data = None
+        else:
+            exception.is_deleted = False
+            override_data = request.data.get('override_data')
+            if override_data is None:
+                allowed = ['title', 'description', 'date', 'end_date', 'duration_minutes', 'all_day', 'timezone', 'priority', 'status', 'is_recurring', 'recurrence_rule']
+                override_data = {k: v for k, v in request.data.items() if k in allowed}
+            exception.override_data = override_data or {}
+        exception.save()
+        return exception
 
     @action(detail=False, methods=['get'], url_path='occurrences')
     def occurrences(self, request):
@@ -85,6 +127,8 @@ class TaskViewSet(viewsets.ModelViewSet):
                 end = end.replace(' ', '+')
             start_dt = parse_datetime(start)
             end_dt = parse_datetime(end)
+            if start_dt is None or end_dt is None:
+                raise ValueError('Invalid datetime')
         except Exception:
             return Response({'detail': 'invalid date format; use ISO datetime'}, status=400)
 
@@ -93,6 +137,45 @@ class TaskViewSet(viewsets.ModelViewSet):
 
         occurrences = expand_recurring_tasks(tasks, exceptions, start_dt, end_dt)
         return Response(occurrences)
+
+    def update(self, request, *args, **kwargs):
+        if request.query_params.get('mode') == 'instance':
+            task = self.get_object()
+            exception = self._save_instance_exception(task, request, delete_only=False)
+            serializer = RecurrenceExceptionSerializer(exception)
+            return Response(serializer.data)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if request.query_params.get('mode') == 'instance':
+            task = self.get_object()
+            exception = self._save_instance_exception(task, request, delete_only=False)
+            serializer = RecurrenceExceptionSerializer(exception)
+            return Response(serializer.data)
+        return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if request.query_params.get('mode') == 'instance':
+            task = self.get_object()
+            self._save_instance_exception(task, request, delete_only=True)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get', 'post'], url_path='exceptions')
+    def exceptions(self, request, pk=None):
+        task = self.get_object()
+        if request.method == 'GET':
+            exceptions = task.exceptions.all().order_by('occurrence_date')
+            serializer = RecurrenceExceptionSerializer(exceptions, many=True)
+            return Response(serializer.data)
+
+        # POST create exception for this task
+        data = request.data.copy()
+        data['task'] = str(task.id)
+        serializer = RecurrenceExceptionSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(task=task)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class RecurrenceExceptionViewSet(viewsets.ModelViewSet):

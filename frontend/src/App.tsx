@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { getOccurrences, login, getTask, register, getMe } from './api'
+import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance } from './api'
 import ErrorBoundary from './components/ErrorBoundary'
 import { logClientError } from './components/clientLogging'
 import MonthView from './components/MonthView'
@@ -9,13 +9,41 @@ import TaskModal from './components/TaskModal'
 
 function monthStartISO(d: Date) {
   const s = new Date(d.getFullYear(), d.getMonth(), 1)
-  return new Date(s.getTime()).toISOString()
+  s.setHours(0,0,0,0)
+  return s.toISOString()
 }
 
 function monthEndISO(d: Date) {
   const e = new Date(d.getFullYear(), d.getMonth() + 1, 0)
   e.setHours(23,59,59,999)
-  return new Date(e.getTime()).toISOString()
+  return e.toISOString()
+}
+
+function weekStartISO(d: Date) {
+  const s = new Date(d)
+  const day = s.getDay()
+  s.setDate(s.getDate() - day)
+  s.setHours(0,0,0,0)
+  return s.toISOString()
+}
+
+function weekEndISO(d: Date) {
+  const e = new Date(weekStartISO(d))
+  e.setDate(new Date(weekStartISO(d)).getDate() + 6)
+  e.setHours(23,59,59,999)
+  return e.toISOString()
+}
+
+function dayStartISO(d: Date) {
+  const s = new Date(d)
+  s.setHours(0,0,0,0)
+  return s.toISOString()
+}
+
+function dayEndISO(d: Date) {
+  const e = new Date(d)
+  e.setHours(23,59,59,999)
+  return e.toISOString()
 }
 
 export default function App() {
@@ -24,14 +52,15 @@ export default function App() {
   const [user, setUser] = useState<any | null>(null)
   const [u, setU] = useState('')
   const [p, setP] = useState('')
-  const [monthDate, setMonthDate] = useState<Date>(new Date())
+  const [viewDate, setViewDate] = useState<Date>(new Date())
   const [view, setView] = useState<'month'|'week'|'day'>('month')
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
+  const [modalOccurrenceDate, setModalOccurrenceDate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
   const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
-  const [modalInitialEndDate, setModalInitialEndDate] = useState<string | null>(null)
   const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
+  const monthDate = viewDate
 
   async function doLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -43,11 +72,21 @@ export default function App() {
     }
   }
 
-  async function loadForMonth(date: Date) {
+  async function loadOccurrences(date: Date, viewMode: 'month'|'week'|'day') {
     setLoading(true)
     try {
-      const start = monthStartISO(date)
-      const end = monthEndISO(date)
+      let start: string
+      let end: string
+      if (viewMode === 'week') {
+        start = weekStartISO(date)
+        end = weekEndISO(date)
+      } else if (viewMode === 'day') {
+        start = dayStartISO(date)
+        end = dayEndISO(date)
+      } else {
+        start = monthStartISO(date)
+        end = monthEndISO(date)
+      }
       const data = await getOccurrences(start, end)
       setOcc(data)
     } catch (e) {
@@ -59,8 +98,8 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (user) loadForMonth(monthDate)
-  }, [user, monthDate])
+    if (user) loadOccurrences(viewDate, view)
+  }, [user, viewDate, view])
 
   useEffect(() => {
     // check existing session on mount
@@ -76,11 +115,29 @@ export default function App() {
     return ()=> window.removeEventListener('error', onError)
   }, [])
 
-  function prevMonth() { setMonthDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1)) }
-  function nextMonth() { setMonthDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1)) }
+  function prevMonth() {
+    setViewDate(d => {
+      const next = new Date(d)
+      if (view === 'month') next.setMonth(next.getMonth() - 1)
+      else if (view === 'week') next.setDate(next.getDate() - 7)
+      else next.setDate(next.getDate() - 1)
+      return next
+    })
+  }
+
+  function nextMonth() {
+    setViewDate(d => {
+      const next = new Date(d)
+      if (view === 'month') next.setMonth(next.getMonth() + 1)
+      else if (view === 'week') next.setDate(next.getDate() + 7)
+      else next.setDate(next.getDate() + 1)
+      return next
+    })
+  }
 
   function openCreateFor(dateISO: string) {
     setModalDate(dateISO)
+    setModalOccurrenceDate(null)
     setEditingTask(null)
     setModalOpen(true)
   }
@@ -90,9 +147,24 @@ export default function App() {
       const t = await getTask(taskId)
       setEditingTask(t)
       setModalDate(occurrenceISO)
+      setModalOccurrenceDate(t?.is_recurring ? occurrenceISO : null)
       setModalOpen(true)
     } catch (err) {
       alert('Failed to load task')
+    }
+  }
+
+  async function toggleDone(taskId: string, occurrenceISO: string, isRecurring: boolean, done: boolean) {
+    try {
+      if (isRecurring) {
+        await updateTaskInstance(taskId, occurrenceISO, { status: done ? 'DONE' : 'PENDING' })
+      } else {
+        await updateTask(taskId, { status: done ? 'DONE' : 'PENDING' })
+      }
+      loadOccurrences(viewDate, view)
+    } catch (err: any) {
+      console.error(err)
+      alert(err?.message || 'Failed to update task status')
     }
   }
 
@@ -105,15 +177,14 @@ export default function App() {
     const durationMin = Math.max(15, Math.round(durationMs / 60000))
     setModalDate(s.toISOString())
     setModalInitialDuration(durationMin)
-    setModalInitialEndDate(endInclusive.toISOString())
     setEditingTask(null)
     setModalOpen(true)
     setSelectionRange({ start: s.toISOString(), end: endInclusive.toISOString() })
   }
 
   function handleSaved(res: any) {
-    // refresh occurrences
-    loadForMonth(monthDate)
+    // refresh occurrences for current view range
+    loadOccurrences(viewDate, view)
     setSelectionRange(null)
   }
 
@@ -184,34 +255,57 @@ export default function App() {
       <>
       <div className="header">
         <div className="brand">TaskManager POC</div>
-        <div className="controls">
+        <div className="controls" style={{display:'flex', alignItems:'center', gap:12}}>
           <div className="small">Signed in as {user.username}</div>
+          <button className="btn" onClick={async ()=>{ await logout(); setUser(null) }}>Logout</button>
         </div>
       </div>
 
       <div style={{marginTop:18}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
           <div style={{display:'flex', gap:8}}>
-              <button className="btn" onClick={()=>setView('month')}>Month</button>
-              <button className="btn" onClick={()=>setView('week')}>Week</button>
-              <button className="btn" onClick={()=>setView('day')}>Day</button>
+              <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
+              <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
+              <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
               <button className="btn" onClick={prevMonth}>Prev</button>
               <button className="btn" onClick={nextMonth}>Next</button>
             </div>
-            <div className="small">{monthDate.toLocaleString(undefined, {month:'long', year:'numeric'})}</div>
+            <div className="small">{viewDate.toLocaleString(undefined, view === 'month' ? {month:'long', year:'numeric'} : {weekday:'long', month:'short', day:'numeric'})}</div>
         </div>
 
-        {view === 'month' && occ && (
+        {view === 'month' && (
           <div>
-            <h3 style={{margin:0, marginBottom:8}}>Occurrences ({occ.length})</h3>
-            <MonthView occurrences={occ} monthDate={monthDate} onDayClick={openCreateFor} />
+            <h3 style={{margin:0, marginBottom:8}}>Occurrences ({occ?.length ?? 0})</h3>
+            <MonthView
+              occurrences={occ || []}
+              monthDate={monthDate}
+              onDayClick={openCreateFor}
+              onOccurrenceClick={openEditFor}
+              onToggleStatus={toggleDone}
+            />
           </div>
         )}
-        {view === 'week' && <WeekView occurrences={occ} weekDate={monthDate} onSlotClick={openCreateFor} onOccurrenceClick={openEditFor} onRangeSelect={openRangeSelect} persistentSelection={selectionRange} />}
-        {view === 'day' && <DayView occurrences={occ} dayDate={monthDate} onSlotClick={openCreateFor} onOccurrenceClick={openEditFor} onRangeSelect={openRangeSelect} persistentSelection={selectionRange} />}
+        {view === 'week' && (
+          <WeekView
+            occurrences={occ || []}
+            weekDate={monthDate}
+            onSlotClick={openCreateFor}
+            onOccurrenceClick={openEditFor}
+            onToggleStatus={toggleDone}
+          />
+        )}
+        {view === 'day' && (
+          <DayView
+            occurrences={occ || []}
+            dayDate={monthDate.toISOString().slice(0,10)}
+            onSlotClick={openCreateFor}
+            onOccurrenceClick={openEditFor}
+            onToggleStatus={toggleDone}
+          />
+        )}
 
         {!occ && <div className="card" style={{padding:18}}>Sign in and click Prev/Next to load occurrences for a month.</div>}
-        {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} occurrenceDate={editingTask ? modalDate : undefined} initialDurationMinutes={modalInitialDuration} initialEndDate={modalInitialEndDate} onClose={handleCloseModal} onSaved={handleSaved} />}
+        {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} occurrenceDate={modalOccurrenceDate ?? undefined} initialDurationMinutes={modalInitialDuration} onClose={handleCloseModal} onSaved={handleSaved} />}
       </div>
       </>
       </ErrorBoundary>

@@ -87,3 +87,68 @@ class TaskAPITests(TestCase):
         # override should appear on one occurrence
         titles = [o['title'] for o in resp2.data]
         self.assertIn('Overridden Weekly', titles)
+
+    def test_task_exceptions_action_endpoint(self):
+        start = timezone.make_aware(datetime(2026, 6, 1, 9))
+        task = Task.objects.create(
+            user=self.user,
+            title='Recurring Task',
+            date=start,
+            priority='IMPORTANT',
+            is_recurring=True,
+            recurrence_rule='FREQ=DAILY;COUNT=5'
+        )
+
+        url = reverse('task-exceptions', kwargs={'pk': task.id})
+        payload = {
+            'occurrence_date': (start + timedelta(days=2)).isoformat(),
+            'is_deleted': True
+        }
+        resp = self.client.post(url, payload, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(RecurrenceException.objects.filter(task=task).count(), 1)
+
+        get_resp = self.client.get(url)
+        self.assertEqual(get_resp.status_code, 200)
+        self.assertEqual(len(get_resp.data), 1)
+        self.assertEqual(get_resp.data[0]['is_deleted'], True)
+
+    def test_update_instance_exception_via_task_update(self):
+        start = timezone.make_aware(datetime(2026, 6, 1, 9))
+        task = Task.objects.create(
+            user=self.user,
+            title='Daily Task',
+            date=start,
+            priority='IMPORTANT',
+            is_recurring=True,
+            recurrence_rule='FREQ=DAILY;COUNT=5'
+        )
+
+        url = reverse('task-detail', kwargs={'pk': task.id})
+        occurrence = (start + timedelta(days=1)).isoformat()
+        payload = {
+            'override_data': {'title': 'Changed once'}
+        }
+        resp = self.client.put(url + f'?mode=instance&occurrence={occurrence}', payload, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['override_data']['title'], 'Changed once')
+        self.assertEqual(RecurrenceException.objects.filter(task=task).count(), 1)
+
+    def test_delete_instance_via_task_destroy(self):
+        start = timezone.make_aware(datetime(2026, 6, 1, 9))
+        task = Task.objects.create(
+            user=self.user,
+            title='Daily Task',
+            date=start,
+            priority='IMPORTANT',
+            is_recurring=True,
+            recurrence_rule='FREQ=DAILY;COUNT=5'
+        )
+
+        url = reverse('task-detail', kwargs={'pk': task.id})
+        occurrence = (start + timedelta(days=2)).isoformat()
+        resp = self.client.delete(url + f'?mode=instance&occurrence={occurrence}')
+        self.assertEqual(resp.status_code, 204)
+        exc = RecurrenceException.objects.get(task=task)
+        self.assertTrue(exc.is_deleted)
+        self.assertIsNone(exc.override_data)
