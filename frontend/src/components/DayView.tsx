@@ -20,11 +20,25 @@ function buildDefaultDate(dayDate?: string) {
   return dayDate || ''
 }
 
+function toYMD(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function parseYMD(s?: string) {
+  if (!s) return new Date()
+  const parts = s.split('-')
+  const y = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  const d = parseInt(parts[2], 10)
+  return new Date(y, m - 1, d)
+}
+
 export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenceClick, onToggleStatus }: any) {
-  const date = dayDate ? new Date(dayDate) : new Date()
-  const key = date.toISOString().slice(0, 10)
+  const date = dayDate ? parseYMD(dayDate) : new Date()
+  const key = toYMD(date)
   const defaultDate = buildDefaultDate(key)
-  const items = (occurrences || []).filter((o: any) => typeof o.date === 'string' && o.date.startsWith(key))
+  const items = (occurrences || []).filter((o: any) => o.date && toYMD(new Date(o.date)) === key)
 
   const grouped = PRIORITIES.reduce((acc, priority) => {
     acc[priority.key] = items
@@ -66,7 +80,7 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
                   <div key={item.task_id + item.date} style={{ display: 'flex', alignItems: 'center', gap: 8, padding:'8px', borderRadius:10, background:'rgba(255,255,255,0.02)', marginBottom:6 }}>
                     <input
                       type="checkbox"
-                      checked={item.status === 'DONE'}
+                      checked={item.status === 'COMPLETED'}
                       onClick={e => e.stopPropagation()}
                       onChange={e => {
                         e.stopPropagation()
@@ -75,7 +89,7 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
                     />
                     <div style={{ flex: 1, display:'flex', justifyContent:'space-between', cursor:'pointer' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
                       <span>{formatTime(item.date)}</span>
-                      <span style={{ marginLeft: 8, flex: 1, textDecoration: item.status === 'DONE' ? 'line-through' : 'none' }}>{item.title}</span>
+                      <span style={{ marginLeft: 8, flex: 1, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>{item.title}</span>
                     </div>
                   </div>
                 ))

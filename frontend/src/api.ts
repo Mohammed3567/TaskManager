@@ -96,7 +96,7 @@ export async function createTask(payload: any) {
 export async function updateTask(id: string, payload: any) {
   const csrfToken = await ensureCsrfToken()
   const resp = await fetch(`${API_BASE}/api/tasks/${id}/`, {
-    method: 'PUT',
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
     body: JSON.stringify(payload),
     credentials: 'include'

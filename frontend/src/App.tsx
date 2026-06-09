@@ -21,17 +21,18 @@ function monthEndISO(d: Date) {
 
 function weekStartISO(d: Date) {
   const s = new Date(d)
-  const day = s.getDay()
-  s.setDate(s.getDate() - day)
+  // Monday as start of week: offset where Monday=0
+  const offset = (s.getDay() + 6) % 7
+  s.setDate(s.getDate() - offset)
   s.setHours(0,0,0,0)
   return s.toISOString()
 }
 
 function weekEndISO(d: Date) {
-  const e = new Date(weekStartISO(d))
-  e.setDate(new Date(weekStartISO(d)).getDate() + 6)
-  e.setHours(23,59,59,999)
-  return e.toISOString()
+  const s = new Date(weekStartISO(d))
+  s.setDate(s.getDate() + 6)
+  s.setHours(23,59,59,999)
+  return s.toISOString()
 }
 
 function dayStartISO(d: Date) {
@@ -61,6 +62,10 @@ export default function App() {
   const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
   const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
   const monthDate = viewDate
+  function toYMDLocal(d: Date) {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }
 
   async function doLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -136,6 +141,9 @@ export default function App() {
   }
 
   function openCreateFor(dateISO: string) {
+    // set the calendar view date to the clicked date so Day view will reflect newly created tasks
+    const parsed = parseIsoOrYmd(dateISO)
+    setViewDate(parsed)
     setModalDate(dateISO)
     setModalOccurrenceDate(null)
     setEditingTask(null)
@@ -146,6 +154,9 @@ export default function App() {
     try {
       const t = await getTask(taskId)
       setEditingTask(t)
+      // ensure the view date matches the occurrence being edited
+      const parsed = parseIsoOrYmd(occurrenceISO)
+      setViewDate(parsed)
       setModalDate(occurrenceISO)
       setModalOccurrenceDate(t?.is_recurring ? occurrenceISO : null)
       setModalOpen(true)
@@ -154,12 +165,26 @@ export default function App() {
     }
   }
 
+  function parseIsoOrYmd(s?: string | null) {
+    if (!s) return new Date()
+    // if it's plain YYYY-MM-DD, construct local date to avoid cross-browser parsing differences
+    const ymd = /^\d{4}-\d{2}-\d{2}$/.test(s)
+    if (ymd) {
+      const [y, m, d] = s.split('-').map(n => parseInt(n, 10))
+      return new Date(y, m - 1, d)
+    }
+    const dt = new Date(s)
+    if (!isNaN(dt.getTime())) return dt
+    // fallback: try treating as local date
+    try { const parts = s.split('T')[0].split('-'); return new Date(parseInt(parts[0],10), parseInt(parts[1],10)-1, parseInt(parts[2],10)) } catch { return new Date() }
+  }
+
   async function toggleDone(taskId: string, occurrenceISO: string, isRecurring: boolean, done: boolean) {
     try {
       if (isRecurring) {
-        await updateTaskInstance(taskId, occurrenceISO, { status: done ? 'DONE' : 'PENDING' })
+        await updateTaskInstance(taskId, occurrenceISO, { status: done ? 'COMPLETED' : 'PENDING' })
       } else {
-        await updateTask(taskId, { status: done ? 'DONE' : 'PENDING' })
+        await updateTask(taskId, { status: done ? 'COMPLETED' : 'PENDING' })
       }
       loadOccurrences(viewDate, view)
     } catch (err: any) {
@@ -297,7 +322,7 @@ export default function App() {
         {view === 'day' && (
           <DayView
             occurrences={occ || []}
-            dayDate={monthDate.toISOString().slice(0,10)}
+            dayDate={toYMDLocal(monthDate)}
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}

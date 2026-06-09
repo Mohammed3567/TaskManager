@@ -25,9 +25,8 @@ function addDays(d: Date, n: number) {
 function toYMD(d: Date) {
   try {
     if (!d) return ''
-    if (typeof (d as any).toISOString === 'function') return (d as Date).toISOString().slice(0, 10)
-    if (typeof d === 'string') return d.slice(0, 10)
-    return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
   } catch (err) {
     console.error('toYMD error', d, err)
     return ''
@@ -37,7 +36,8 @@ function toYMD(d: Date) {
 export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void }) {
   const base = monthDate || new Date()
   const start = startOfMonth(base)
-  const startWeekDay = start.getDay() // 0=Sun
+  // compute start weekday with Monday as 0 (so Monday..Sunday => 0..6)
+  const startWeekDay = (start.getDay() + 6) % 7
   const firstGridDate = addDays(start, -startWeekDay)
   const days: Date[] = []
   for (let i = 0; i < 42; i++) days.push(addDays(firstGridDate, i))
@@ -48,7 +48,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
   if (!Array.isArray(occurrences)) console.warn('MonthView: occurrences is not an array', occurrences)
   else console.debug('MonthView occurrences count', occList.length, occList.slice(0,2))
   occList.forEach((o:any) => {
-    const key = (o && o.date) ? (typeof o.date === 'string' ? o.date.slice(0,10) : toYMD(new Date(o.date))) : ''
+    const key = (o && o.date) ? toYMD(new Date(o.date)) : ''
     if (!byDate[key]) byDate[key] = []
     byDate[key].push(o)
   })
@@ -59,7 +59,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
     return (
       <div className="card">
       <div className="month-grid small">
-        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
           <div key={d} style={{fontWeight:700, textAlign:'center'}}>{d}</div>
         ))}
       </div>
@@ -81,7 +81,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
                   <div key={it.task_id + it.date} className="occ-item" style={{display:'flex', alignItems:'center', gap:8}}>
                     <input
                       type="checkbox"
-                      checked={it.status === 'DONE'}
+                      checked={it.status === 'COMPLETED'}
                       onClick={e => e.stopPropagation()}
                       onChange={e => {
                         e.stopPropagation()
@@ -89,7 +89,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
                       }}
                     />
                     <div
-                      style={{flex:1, textDecoration: it.status === 'DONE' ? 'line-through' : 'none', cursor:'pointer'}}
+                      style={{flex:1, textDecoration: it.status === 'COMPLETED' ? 'line-through' : 'none', cursor:'pointer'}}
                       onClick={e => { e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date) }}
                     >
                       {it.title}

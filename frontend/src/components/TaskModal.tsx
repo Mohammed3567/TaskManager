@@ -4,7 +4,15 @@ import ConfirmationDialog from './ConfirmationDialog'
 
 function isoToLocalInput(iso?: string | null) {
   if (!iso) return ''
-  const d = new Date(iso)
+  // support plain YYYY-MM-DD and full ISO datetimes
+  const ymdMatch = typeof iso === 'string' && iso.match(/^\d{4}-\d{2}-\d{2}$/)
+  let d: Date
+  if (ymdMatch) {
+    const [y, m, day] = iso.split('-').map(n => parseInt(n, 10))
+    d = new Date(y, m - 1, day)
+  } else {
+    d = new Date(iso)
+  }
   const pad = (n:number) => String(n).padStart(2,'0')
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
 }
@@ -73,9 +81,15 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    function localYmdToIso(s?: string | null) {
+      if (!s) return null
+      const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
+      return new Date(y, m - 1, d).toISOString()
+    }
+
     const basePayload: any = {
       title,
-      date: new Date(`${date}T00:00:00`).toISOString(),
+      date: localYmdToIso(date),
       priority,
       tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : []
     }
@@ -104,9 +118,15 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
     e.preventDefault()
     if (!task || !task.id) return save(e)
     setSaving(true)
+    function localYmdToIso(s?: string | null) {
+      if (!s) return null
+      const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
+      return new Date(y, m - 1, d).toISOString()
+    }
+
     const payload: any = {
       title,
-      date: new Date(`${date}T00:00:00`).toISOString(),
+      date: localYmdToIso(date),
       priority,
       tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : []
     }
@@ -192,7 +212,12 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
         await deleteTask(task.id)
         alert('Task deleted')
       } else if (confirmType === 'override') {
-        const override: any = { title, date: new Date(`${date}T00:00:00`).toISOString(), priority }
+        function localYmdToIso(s?: string | null) {
+          if (!s) return null
+          const [y, m, d] = s.split('-').map((n:string)=>parseInt(n,10))
+          return new Date(y, m - 1, d).toISOString()
+        }
+        const override: any = { title, date: localYmdToIso(date), priority }
         if (durationMinutes) override.duration_minutes = durationMinutes
         await updateTaskInstance(task.id, confirmOcc!, override)
         alert('Occurrence override saved')

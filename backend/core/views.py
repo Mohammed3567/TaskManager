@@ -104,7 +104,11 @@ class TaskViewSet(viewsets.ModelViewSet):
             if override_data is None:
                 allowed = ['title', 'description', 'date', 'end_date', 'duration_minutes', 'all_day', 'timezone', 'priority', 'status', 'is_recurring', 'recurrence_rule']
                 override_data = {k: v for k, v in request.data.items() if k in allowed}
-            exception.override_data = override_data or {}
+            # normalize legacy status values in override data
+            override_data = override_data or {}
+            if isinstance(override_data, dict) and override_data.get('status') == 'DONE':
+                override_data['status'] = 'COMPLETED'
+            exception.override_data = override_data
         exception.save()
         return exception
 
