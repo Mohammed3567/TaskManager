@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance } from './api'
+import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance, createTask, quickAdd } from './api'
 import ErrorBoundary from './components/ErrorBoundary'
 import { logClientError } from './components/clientLogging'
 import MonthView from './components/MonthView'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import TaskModal from './components/TaskModal'
+import Analytics from './components/Analytics'
+import FocusTimer from './components/FocusTimer'
+import TemplatesSelect from './components/TemplatesSelect'
 
 function monthStartISO(d: Date) {
   const s = new Date(d.getFullYear(), d.getMonth(), 1)
@@ -54,7 +57,11 @@ export default function App() {
   const [u, setU] = useState('')
   const [p, setP] = useState('')
   const [viewDate, setViewDate] = useState<Date>(new Date())
-  const [view, setView] = useState<'month'|'week'|'day'>('month')
+  const [view, setView] = useState<'month'|'week'|'day'|'analytics'>('month')
+  const [headerAnimate, setHeaderAnimate] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [quickText, setQuickText] = useState('')
+  const [showTimer, setShowTimer] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [modalOccurrenceDate, setModalOccurrenceDate] = useState<string | null>(null)
@@ -112,6 +119,27 @@ export default function App() {
     getMe().then((u:any)=>{ if (mounted && u) setUser(u) }).catch(()=>{})
     return ()=>{ mounted = false }
   }, [])
+
+  useEffect(() => {
+    // Animate header briefly when view or date changes
+    setHeaderAnimate(true)
+    const t = setTimeout(()=> setHeaderAnimate(false), 420)
+    return () => clearTimeout(t)
+  }, [viewDate, view])
+
+  function headerTitleForView(viewMode: string, d: Date) {
+    if (viewMode === 'month') return d.toLocaleString(undefined, { month: 'long', year: 'numeric' })
+    if (viewMode === 'week') {
+      const s = new Date(weekStartISO(d))
+      const e = new Date(weekEndISO(d))
+      const sFmt = s.toLocaleDateString(undefined, { month:'short', day: 'numeric' })
+      const eFmt = e.toLocaleDateString(undefined, { month:'short', day: 'numeric', year:'numeric' })
+      return `${sFmt} — ${eFmt}`
+    }
+    if (viewMode === 'day') return d.toLocaleString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+    if (viewMode === 'analytics') return 'Dashboard'
+    return ''
+  }
 
   // global react error boundary logging hook
   useEffect(()=>{
@@ -250,20 +278,20 @@ export default function App() {
     }
 
     return (
-      <div style={{display:'flex', alignItems:'center', justifyContent:'center', height:'100vh'}}>
-        <div style={{width:420, background:'#071027', padding:18, borderRadius:12}}>
-          <h2 style={{marginTop:0}}>Welcome — Sign in or Register</h2>
-          <div style={{display:'flex', gap:8, marginBottom:12}}>
+      <div className="auth-overlay">
+        <div className="auth-card" role="dialog" aria-modal="true">
+          <h2 style={{marginTop:0}}>Welcome — Sign In or Register</h2>
+          <div style={{display:'flex', gap:8, marginBottom:14}}>
             <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>setMode('register')}>Register</button>
             <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>setMode('login')}>Sign In</button>
           </div>
           <form onSubmit={mode==='register' ? doRegister : doLoginLocal}>
-            <input className="login-input" placeholder="username" value={username} onChange={e=>setUsername(e.target.value)} />
-            {mode==='register' && <input className="login-input" placeholder="email (optional)" value={email} onChange={e=>setEmail(e.target.value)} />}
-            <input className="login-input" placeholder="password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-            <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:8}}>
+            <input className="login-input" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
+            {mode==='register' && <input className="login-input" placeholder="Email (optional)" value={email} onChange={e=>setEmail(e.target.value)} />}
+            <input className="login-input" placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+            <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:12}}>
               <button className="btn" type="button" onClick={()=>{ setUsername(''); setPassword(''); setEmail('') }}>Clear</button>
-              <button className="btn primary" type="submit">{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register & Sign in' : 'Sign in')}</button>
+              <button className="btn primary" type="submit">{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register & Sign In' : 'Sign In')}</button>
             </div>
           </form>
         </div>
@@ -282,33 +310,43 @@ export default function App() {
         <div className="brand">TaskManager POC</div>
         <div className="controls" style={{display:'flex', alignItems:'center', gap:12}}>
           <div className="small">Signed in as {user.username}</div>
-          <button className="btn" onClick={async ()=>{ await logout(); setUser(null) }}>Logout</button>
+          <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); alert('Logout failed') } }}>Logout</button>
         </div>
       </div>
 
       <div style={{marginTop:18}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12}}>
           <div style={{display:'flex', gap:8}}>
-              <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
-              <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
-              <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
+                <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
+                <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
+                <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
+                <button className={`btn ${view==='analytics' ? 'active' : ''}`} onClick={()=>setView('analytics')}>Dashboard</button>
               <button className="btn" onClick={prevMonth}>Prev</button>
               <button className="btn" onClick={nextMonth}>Next</button>
             </div>
-            <div className="small">{viewDate.toLocaleString(undefined, view === 'month' ? {month:'long', year:'numeric'} : {weekday:'long', month:'short', day:'numeric'})}</div>
+              <div style={{display:'flex', alignItems:'center', gap:12}}>
+                <input className="login-input" placeholder="Quick Add (e.g. 'Meeting tomorrow at 9am')" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:320}} />
+                <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>Quick Add</button>
+                <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
+                <button className="btn" onClick={()=>setShowTimer(s=>!s)}>{showTimer? 'Hide Timer':'Focus Timer'}</button>
+              </div>
         </div>
 
-        {view === 'month' && (
-          <div>
-            <h3 style={{margin:0, marginBottom:8}}>Occurrences ({occ?.length ?? 0})</h3>
-            <MonthView
-              occurrences={occ || []}
-              monthDate={monthDate}
-              onDayClick={openCreateFor}
-              onOccurrenceClick={openEditFor}
-              onToggleStatus={toggleDone}
-            />
+              {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
+        {(view === 'month' || view === 'week' || view === 'day') && (
+          <div className="top-left-header">
+            <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, viewDate)}</div>
+            <div className="occurrences-count">Occurrences ({occ?.length ?? 0})</div>
           </div>
+        )}
+        {view === 'month' && (
+          <MonthView
+            occurrences={occ || []}
+            monthDate={monthDate}
+            onDayClick={openCreateFor}
+            onOccurrenceClick={openEditFor}
+            onToggleStatus={toggleDone}
+          />
         )}
         {view === 'week' && (
           <WeekView
@@ -327,6 +365,9 @@ export default function App() {
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
           />
+        )}
+        {view === 'analytics' && (
+          <Analytics />
         )}
 
         {!occ && <div className="card" style={{padding:18}}>Sign in and click Prev/Next to load occurrences for a month.</div>}

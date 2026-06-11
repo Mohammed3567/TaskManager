@@ -13,6 +13,9 @@ from rest_framework.exceptions import ValidationError
 from .serializers import UserSerializer, RegisterSerializer
 from .serializers import RecurrenceExceptionSerializer
 from .models import RecurrenceException
+from django.utils import timezone
+import datetime
+import re
 
 #testing
 class RegisterView(APIView):
@@ -201,3 +204,119 @@ class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+
+class AnalyticsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # optional start/end query params (ISO datetimes)
+        start = request.query_params.get('start')
+        end = request.query_params.get('end')
+        try:
+            if not start:
+                end_dt = timezone.now()
+                start_dt = end_dt - datetime.timedelta(days=30)
+            else:
+                if ' ' in start and 'T' in start:
+                    start = start.replace(' ', '+')
+                if ' ' in end and 'T' in end:
+                    end = end.replace(' ', '+')
+                start_dt = parse_datetime(start) if start else (timezone.now() - datetime.timedelta(days=30))
+                end_dt = parse_datetime(end) if end else timezone.now()
+            if start_dt is None or end_dt is None:
+                raise ValueError('Invalid datetime')
+        except Exception:
+            return Response({'detail': 'invalid date format; use ISO datetime'}, status=400)
+
+        tasks = Task.objects.filter(user=request.user)
+        exceptions = RecurrenceException.objects.filter(task__in=tasks)
+        occurrences = expand_recurring_tasks(tasks, exceptions, start_dt, end_dt)
+
+        total = len(occurrences)
+        completed = sum(1 for o in occurrences if o.get('status') == 'COMPLETED')
+        completion_rate = round((completed / total) * 100, 2) if total > 0 else 0
+
+        by_priority = {}
+        for o in occurrences:
+            p = o.get('priority') or 'UNKNOWN'
+            by_priority[p] = by_priority.get(p, 0) + 1
+
+        # tag counts (by tasks)
+        tag_counts = {}
+        for t in tasks:
+            for tag in t.tags.all():
+                tag_counts[tag.name] = tag_counts.get(tag.name, 0) + 1
+
+        # compute current completion streak (consecutive days with at least one completed occurrence)
+        completed_dates = set()
+        for o in occurrences:
+            if o.get('status') == 'COMPLETED':
+                dt = parse_datetime(o.get('date'))
+                if dt:
+                    completed_dates.add(dt.date())
+
+        streak = 0
+        today = timezone.now().date()
+        d = today
+        while d in completed_dates:
+            streak += 1
+            d = d - datetime.timedelta(days=1)
+
+        return Response({
+            'total_occurrences': total,
+            'completed_occurrences': completed,
+            'completion_rate_percent': completion_rate,
+            'by_priority': by_priority,
+            'tag_counts': tag_counts,
+            'current_streak_days': streak,
+        })
+
+
+class QuickAddView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        text = (request.data.get('text') or '').strip()
+        if not text:
+            return Response({'detail': 'text is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        date = now
+        # simple NLP heuristics
+        if re.search(r'\btomorrow\b', text, re.I):
+            date = now + datetime.timedelta(days=1)
+        elif re.search(r'\btoday\b', text, re.I):
+            date = now
+        else:
+            m = re.search(r'\bin (\d+) days?\b', text, re.I)
+            if m:
+                days = int(m.group(1))
+                date = now + datetime.timedelta(days=days)
+
+        # parse time expressions like 'at 9am' or 'at 9:30 pm'
+        tm = re.search(r'at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?', text, re.I)
+        if tm:
+            hour = int(tm.group(1))
+            minute = int(tm.group(2) or 0)
+            ampm = tm.group(3)
+            if ampm:
+                if ampm.lower() == 'pm' and hour < 12:
+                    hour += 12
+                if ampm.lower() == 'am' and hour == 12:
+                    hour = 0
+            date = date.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        else:
+            # default to 09:00 local
+            date = date.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        # create task with minimal required fields
+        payload = {
+            'title': text,
+            'date': date.isoformat(),
+            'priority': 'IMPORTANT'
+        }
+        serializer = TaskSerializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        task = serializer.save(user=request.user)
+        return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)

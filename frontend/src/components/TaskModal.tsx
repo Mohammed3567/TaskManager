@@ -147,13 +147,14 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       openTaskDeleteConfirm()
       return
     }
+    // If we have a specific occurrence in the modal, ask to delete that occurrence (confirmation)
     if (occurrenceDate) {
       setConfirmType('delete')
       setConfirmOcc(occurrenceDate)
       setConfirmOpen(true)
       return
     }
-    // open selection modal for user to pick an occurrence
+    // open selection modal for user to pick an occurrence (or delete whole series)
     setSelectionMode('delete')
     fetchTaskOccurrencesForSelection()
   }
@@ -245,7 +246,7 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
             <input className="login-input" type="date" value={date} onChange={e=>setDate(e.target.value)} />
           </div>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
-            <select className="login-input" value={priority} onChange={e=>setPriority(e.target.value)}>
+            <select className="priority-select" value={priority} onChange={e=>setPriority(e.target.value)}>
               <option value="CRITICAL">CRITICAL</option>
               <option value="IMPORTANT">IMPORTANT</option>
               <option value="ROUTINE">ROUTINE</option>
@@ -266,16 +267,27 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
           </div>
           <div style={{display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap'}}>
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            {task && task.id && !task.is_recurring ? (
+            {task && task.id ? (
               <button type="button" className="btn danger" onClick={openTaskDeleteConfirm}>
                 Delete task
               </button>
             ) : null}
             {task && task.is_recurring ? (
-              <button type="button" className="btn danger" onClick={openDeleteConfirm}>
-                <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-                Add delete exception
-              </button>
+              <>
+                {occurrenceDate ? (
+                  <button type="button" className="btn danger" onClick={() => { setConfirmType('delete'); setConfirmOcc(occurrenceDate); setConfirmOpen(true) }}>
+                    Delete occurrence
+                  </button>
+                ) : (
+                  <button type="button" className="btn danger" onClick={openDeleteConfirm}>
+                    <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+                    Add delete exception
+                  </button>
+                )}
+                <button type="button" className="btn danger" onClick={openTaskDeleteConfirm}>
+                  Delete series
+                </button>
+              </>
             ) : null}
             {occurrenceDate && task && task.id ? (
               <>
@@ -320,6 +332,9 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
         <div style={{position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(2,6,23,0.6)'}}>
           <div style={{width:520, background:'#071027', padding:18, borderRadius:12}}>
             <h4 style={{marginTop:0}}>Select occurrence</h4>
+              <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginBottom:8}}>
+                <button className="btn danger" onClick={() => { setConfirmType('delete_task'); setConfirmOcc(null); setConfirmOpen(true); setSelectionOpen(false); }}>Delete whole series</button>
+              </div>
             {selectionLoading ? <div>Loading...</div> : (
               <div style={{maxHeight:300, overflow:'auto'}}>
                 {selectionOptions && selectionOptions.map((d)=> (

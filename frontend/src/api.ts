@@ -167,3 +167,28 @@ export async function getTask(id: string) {
   if (!resp.ok) throw new Error('Get task failed')
   return resp.json()
 }
+
+export async function getAnalytics(start?: string, end?: string) {
+  const params: string[] = []
+  if (start) params.push(`start=${encodeURIComponent(start)}`)
+  if (end) params.push(`end=${encodeURIComponent(end)}`)
+  const url = `${API_BASE}/api/core/analytics/${params.length ? `?${params.join('&')}` : ''}`
+  const resp = await fetch(url, { credentials: 'include' })
+  if (!resp.ok) throw new Error('Fetching analytics failed')
+  return resp.json()
+}
+
+export async function quickAdd(text: string) {
+  const csrfToken = await ensureCsrfToken()
+  const resp = await fetch(`${API_BASE}/api/core/quick_add/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    body: JSON.stringify({ text }),
+    credentials: 'include'
+  })
+  if (!resp.ok) {
+    const txt = await resp.text().catch(()=>null)
+    throw new Error(txt || 'Quick add failed')
+  }
+  return resp.json()
+}
