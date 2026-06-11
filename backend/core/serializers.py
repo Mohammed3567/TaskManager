@@ -16,6 +16,8 @@ class TaskSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     tag_names = serializers.ListField(child=serializers.CharField(), write_only=True, required=False)
     user = serializers.PrimaryKeyRelatedField(read_only=True)
+    # accept legacy 'DONE' value from older clients and normalize to 'COMPLETED'
+    status = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
         model = Task
@@ -55,11 +57,31 @@ class TaskSerializer(serializers.ModelSerializer):
                 instance.tags.add(tag)
         return instance
 
+    def validate_status(self, value):
+        if value is None:
+            return value
+        # normalize legacy value
+        if value == 'DONE':
+            return 'COMPLETED'
+        valid = [c[0] for c in Task._meta.get_field('status').choices]
+        if value not in valid:
+            raise serializers.ValidationError('Invalid status')
+        return value
+
 
 class RecurrenceExceptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = RecurrenceException
         fields = ('id', 'task', 'occurrence_date', 'is_deleted', 'override_data', 'created_at')
+
+    def validate_override_data(self, value):
+        # normalize legacy status values in override payloads
+        if not value:
+            return value
+        if isinstance(value, dict):
+            if value.get('status') == 'DONE':
+                value['status'] = 'COMPLETED'
+        return value
 
 
 class UserSerializer(serializers.ModelSerializer):

@@ -15,7 +15,14 @@ def occurrence_to_dict(task, occ_dt, exception_override=None):
         'is_recurring': task.is_recurring,
     }
     if exception_override:
+        # normalize legacy status in exception overrides
+        if isinstance(exception_override, dict) and exception_override.get('status') == 'DONE':
+            exception_override = dict(exception_override)
+            exception_override['status'] = 'COMPLETED'
         d.update(exception_override)
+    # normalize any legacy status in the resulting occurrence dict
+    if d.get('status') == 'DONE':
+        d['status'] = 'COMPLETED'
     return d
 
 

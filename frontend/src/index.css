@@ -30,3 +30,58 @@ html,body,#root { height:100%; margin:0; font-family: Inter, system-ui, -apple-s
 
 .confirm-box { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); padding:10px; border-radius:8px; display:flex; gap:8px; align-items:center }
 .btn .icon { margin-right:6px }
+
+/* Header emphasis transition */
+.date-header { transition: transform 260ms cubic-bezier(.2,.9,.2,1), color 260ms, font-weight 260ms; transform-origin:center; display:inline-block }
+.date-header.animate { transform: scale(1.08); font-weight:800; color:#ffffff; text-shadow: 0 6px 18px rgba(124,58,237,0.12) }
+
+/* Templates select styling */
+.templates-select-wrapper { position:relative; display:inline-block }
+.templates-select { appearance:none; -webkit-appearance:none; -moz-appearance:none; padding:8px 32px 8px 12px; border-radius:8px; background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; min-width:180px; cursor:pointer }
+.templates-select:focus { outline: none; box-shadow: 0 6px 18px rgba(124,58,237,0.08) }
+.templates-chevron { position:absolute; right:8px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--muted); font-size:12px }
+
+/* Priority select styling */
+.priority-select { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:var(--glass); color:inherit; min-width:140px }
+.priority-select:focus { outline:none; box-shadow: 0 6px 18px rgba(124,58,237,0.08) }
+
+/* Auth modal styling */
+.auth-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.6); z-index:1200 }
+.auth-card { width:520px; background:#071027; padding:24px; border-radius:12px; box-shadow: 0 10px 30px rgba(124,58,237,0.12), 0 6px 18px rgba(2,6,23,0.7); border:1px solid rgba(124,58,237,0.08) }
+.auth-card .login-input { display:block; width:100%; margin:12px 0; }
+.auth-card h2 { margin-top:0; margin-bottom:8px; font-size:20px }
+
+/* Timer inputs styling */
+.timer-number-input { background:transparent; border:1px solid rgba(255,255,255,0.04); color:inherit; padding:8px; border-radius:8px }
+.timer-number-input:focus { outline:none; box-shadow: 0 6px 18px rgba(124,58,237,0.06) }
+
+/* Templates select dropdown option styling - remove white default appearance */
+.templates-select option { background: #071027; color: #e6eef8 }
+
+/* Priority select dropdown styling to match theme */
+.priority-select option { background: #071027; color: #e6eef8 }
+/* Fallback for native selects across platforms */
+select option { background: #071027; color: #e6eef8 }
+
+/* Calendar header repositioning and sizing */
+.top-left-header { display:flex; align-items:center; gap:12px; margin-bottom:12px }
+.top-left-header .date-header { font-size:20px; margin-left:0 }
+.occurrences-count { margin-left:auto; font-size:13px; color:var(--muted) }
+
+/* Auth card neon accent */
+.auth-card { box-shadow: 0 10px 30px rgba(124,58,237,0.12), 0 6px 18px rgba(2,6,23,0.7); border:1px solid rgba(124,58,237,0.08) }
+.auth-card:hover { transform: translateY(-4px); transition: transform 220ms }
+
+/* Neon gradient background touch on overlay */
+.auth-overlay { background: radial-gradient(circle at 20% 10%, rgba(124,58,237,0.08), transparent 8%), radial-gradient(circle at 80% 90%, rgba(79,70,229,0.06), transparent 10%), rgba(2,6,23,0.6) }
+
+/* Larger auth inputs */
+.auth-card .login-input { padding:12px; font-size:16px }
+
+/* Template select dark-looking options for edit occurrence dropdowns that use native selects */
+select, .login-input, .templates-select { background-clip: padding-box }
+
+/* Logout button red hover and persistent state */
+.logout-btn:hover { background: linear-gradient(90deg,#ef4444,#dc2626); color:white; border-color: rgba(255,80,80,0.2) }
+.logout-btn.loggingOut { background: linear-gradient(90deg,#ef4444,#dc2626); color:white }
+.logout-btn:active { transform: translateY(0) }
