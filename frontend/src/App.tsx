@@ -247,7 +247,7 @@ export default function App() {
   }
 
   function AuthPage({ onAuth }: any) {
-    const [mode, setMode] = useState<'login'|'register'>('register')
+    const [mode, setMode] = useState<'login'|'register'>('login')
     const [username, setUsername] = useState('')
     const [password, setPassword] = useState('')
     const [email, setEmail] = useState('')
@@ -282,8 +282,8 @@ export default function App() {
         <div className="auth-card" role="dialog" aria-modal="true">
           <h2 style={{marginTop:0}}>Welcome to Task Manager</h2>
           <div style={{display:'flex', gap:8, marginBottom:14}}>
-            <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>setMode('register')}>Register</button>
             <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>setMode('login')}>Sign In</button>
+            <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>setMode('register')}>Register</button>
           </div>
           <form onSubmit={mode==='register' ? doRegister : doLoginLocal}>
             <input className="login-input" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
@@ -291,7 +291,7 @@ export default function App() {
             <input className="login-input" placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
             <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:12}}>
               <button className="btn" type="button" onClick={()=>{ setUsername(''); setPassword(''); setEmail('') }}>Clear</button>
-              <button className="btn primary" type="submit">{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register & Sign In' : 'Sign In')}</button>
+              <button className="btn primary" type="submit">{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register' : 'Sign In')}</button>
             </div>
           </form>
         </div>
