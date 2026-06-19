@@ -307,7 +307,7 @@ export default function App() {
       <ErrorBoundary>
       <>
       <div className="header">
-        <div className="brand">TaskManager POC</div>
+        <div className="brand">Task Manager</div>
         <div className="controls" style={{display:'flex', alignItems:'center', gap:12}}>
           <div className="small">Signed in as {user.username}</div>
           <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); alert('Logout failed') } }}>Logout</button>
