@@ -30,7 +30,7 @@ test('delete occurrence vs delete series', async ({ request }) => {
   const taskId = String(taskBody.id)
 
   // Get occurrences for next 7 days
-  const now = new Date().toISOString()
+  const now = new Date(Date.now() - 60 * 1000).toISOString()
   const in7 = new Date(Date.now() + 7*24*3600*1000).toISOString()
   const occRes = await request.get(`${API_BASE}/api/tasks/occurrences/?start=${encodeURIComponent(now)}&end=${encodeURIComponent(in7)}`)
   expect(occRes.ok()).toBeTruthy()
