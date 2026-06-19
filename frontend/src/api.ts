@@ -51,7 +51,7 @@ export async function logout() {
     },
     credentials: 'include'
   })
-  if (!resp.ok) throw new Error('Logout failed')
+  if (!resp.ok) throw new Error('Sorry, logout failed')
   return resp
 }
 
