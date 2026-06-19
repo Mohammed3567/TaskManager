@@ -280,7 +280,7 @@ export default function App() {
     return (
       <div className="auth-overlay">
         <div className="auth-card" role="dialog" aria-modal="true">
-          <h2 style={{marginTop:0}}>Welcome — Sign In or Register</h2>
+          <h2 style={{marginTop:0}}>Welcome to Task Manager</h2>
           <div style={{display:'flex', gap:8, marginBottom:14}}>
             <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>setMode('register')}>Register</button>
             <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>setMode('login')}>Sign In</button>
