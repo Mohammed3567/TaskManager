@@ -1,6 +1,6 @@
-# TaskManager (POC)
+# TaskManager
 
-This repository contains a proof-of-concept TaskManager application. The backend is a Django + Django REST Framework API (SQLite for the POC). The frontend will be a React + TypeScript SPA that consumes the API.
+This repository contains the code and required files for a college project - TaskManager application. The backend is a Django + Django REST Framework API (SQLite for the POC). The frontend will be a React + TypeScript SPA that consumes the API.
 
 Quick start (Windows / PowerShell):
 
