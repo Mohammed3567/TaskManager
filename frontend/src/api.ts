@@ -19,7 +19,11 @@ export async function login(username: string, password: string) {
     body: JSON.stringify({ username, password }),
     credentials: 'include'
   })
-  if (!resp.ok) throw new Error('Login failed')
+  if (!resp.ok) {
+    const txt = await resp.text()
+    console.error('Login failed:', resp.status, txt)
+    throw new Error(txt || `Login failed (${resp.status})`)
+  }
   return resp.json()
 }
 

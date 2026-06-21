@@ -40,7 +40,11 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
   const startWeekDay = (start.getDay() + 6) % 7
   const firstGridDate = addDays(start, -startWeekDay)
   const days: Date[] = []
-  for (let i = 0; i < 42; i++) days.push(addDays(firstGridDate, i))
+  const totalDays =
+  (startWeekDay + endOfMonth(base).getDate()) <= 35
+    ? 35
+    : 42
+  for (let i = 0; i < totalDays; i++) days.push(addDays(firstGridDate, i))
 
   // group occurrences by date (YYYY-MM-DD)
   const byDate: Record<string, Occurrence[]> = {}
@@ -57,7 +61,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
 
   try {
     return (
-      <div className="card">
+      <div className="card" style={{display: 'inline-block', width: '100%'}}>
       <div className="month-grid small">
         {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
           <div key={d} style={{fontWeight:700, textAlign:'center'}}>{d}</div>
