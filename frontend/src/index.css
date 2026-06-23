@@ -84,3 +84,29 @@ select, .login-input, .templates-select { background-clip: padding-box }
 .logout-btn:hover { background: linear-gradient(90deg,#ef4444,#dc2626); color:white; border-color: rgba(255,80,80,0.2) }
 .logout-btn.loggingOut { background: linear-gradient(90deg,#ef4444,#dc2626); color:white }
 .logout-btn:active { transform: translateY(0) }
+
+/* react-datepicker custom dark theme overrides to match app */
+.react-datepicker {
+	background: var(--card);
+	color: inherit;
+	border: 1px solid rgba(255,255,255,0.04);
+	border-radius: 10px;
+	box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+	padding: 8px;
+}
+.react-datepicker__triangle { display:none }
+.react-datepicker__header {
+	background: linear-gradient(90deg,var(--accent), #4f46e5);
+	border-bottom: 1px solid rgba(255,255,255,0.04);
+	color: white;
+	padding-top:10px;
+	border-top-left-radius: 10px;
+	border-top-right-radius: 10px;
+}
+.react-datepicker__current-month { font-weight:700 }
+.react-datepicker__day-name, .react-datepicker__day { color: #e6eef8 }
+.react-datepicker__day--selected { background: var(--accent) !important; color: white !important; border-radius:8px }
+.react-datepicker__day--today { border:1px solid rgba(124,58,237,0.25); border-radius:6px }
+.react-datepicker__navigation { color: white }
+.date-picker-wrapper { display:inline-block }
+.react-datepicker__month-container { border-radius: 8px }

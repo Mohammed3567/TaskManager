@@ -39,7 +39,7 @@ export default function Analytics() {
           {Object.entries(data.by_priority || {}).map(([k,v]) => (
             <div key={k} style={{padding:8, borderRadius:8, background:'rgba(255,255,255,0.02)'}}>
               <div className="small">{k}</div>
-              <div style={{fontWeight:700}}>{v}</div>
+              <div style={{fontWeight:700}}>{String(v)}</div>
             </div>
           ))}
         </div>
@@ -51,7 +51,7 @@ export default function Analytics() {
           {Object.entries(data.tag_counts || {}).map(([k,v]) => (
             <div key={k} style={{padding:8, borderRadius:8, background:'rgba(255,255,255,0.02)'}}>
               <div className="small">{k}</div>
-              <div style={{fontWeight:700}}>{v}</div>
+              <div style={{fontWeight:700}}>{String(v)}</div>
             </div>
           ))}
         </div>

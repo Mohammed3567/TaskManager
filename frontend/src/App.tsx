@@ -64,7 +64,6 @@ export default function App() {
   const [showTimer, setShowTimer] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
-  const [modalOccurrenceDate, setModalOccurrenceDate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
   const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
   const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
@@ -84,7 +83,7 @@ export default function App() {
     }
   }
 
-  async function loadOccurrences(date: Date, viewMode: 'month'|'week'|'day') {
+  async function loadOccurrences(date: Date, viewMode: 'month'|'week'|'day'|'analytics') {
     setLoading(true)
     try {
       let start: string
@@ -173,7 +172,7 @@ export default function App() {
     const parsed = parseIsoOrYmd(dateISO)
     setViewDate(parsed)
     setModalDate(dateISO)
-    setModalOccurrenceDate(null)
+    // do not open modal in "occurrence edit" mode — simplified UI
     setEditingTask(null)
     setModalOpen(true)
   }
@@ -186,7 +185,8 @@ export default function App() {
       const parsed = parseIsoOrYmd(occurrenceISO)
       setViewDate(parsed)
       setModalDate(occurrenceISO)
-      setModalOccurrenceDate(t?.is_recurring ? occurrenceISO : null)
+      // always open task edit (not occurrence edit)
+      // occurrence overrides are hidden from the UI
       setModalOpen(true)
     } catch (err) {
       alert('Failed to load task')
@@ -373,7 +373,7 @@ export default function App() {
         )}
 
         {!occ && <div className="card" style={{padding:18}}>Sign in and click Prev/Next to load occurrences for a month.</div>}
-        {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} occurrenceDate={modalOccurrenceDate ?? undefined} initialDurationMinutes={modalInitialDuration} onClose={handleCloseModal} onSaved={handleSaved} />}
+        {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} initialDurationMinutes={modalInitialDuration} onClose={handleCloseModal} onSaved={handleSaved} />}
       </div>
       </>
       </ErrorBoundary>
