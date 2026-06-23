@@ -315,24 +315,42 @@ export default function App() {
       </div>
 
       <div style={{marginTop:18}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:'12px'}}>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
-                <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
-                <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
-                <button className={`btn ${view==='analytics' ? 'active' : ''}`} onClick={()=>setView('analytics')}>Dashboard</button>
-          </div>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-              <button className="btn" onClick={prevMonth}>Prev</button>
-              <button className="btn" onClick={nextMonth}>Next</button>
-          </div>
-              <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-                <input className="login-input" placeholder="Quick Add (e.g. 'Meeting tomorrow at 9am')" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:250}} />
-                <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>Quick Add</button>
-                <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
-                <button className="btn" onClick={()=>setShowTimer(s=>!s)}>{showTimer? 'Hide Timer':'Focus Timer'}</button>
-              </div>
-        </div>
+  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:'12px'}}>
+    
+    <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+      <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
+      <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
+      <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
+      <button className={`btn ${view==='analytics' ? 'active' : ''}`} onClick={()=>setView('analytics')}>Dashboard</button>
+      <button className="btn" onClick={()=>setShowTimer(s=>!s)}>{showTimer ? 'Hide Timer' : 'Focus Timer'}</button>
+    </div>
+
+    <div style={{display:'flex', gap:8}}>
+        <button className="btn" onClick={prevMonth}>Prev</button>
+        <button className="btn" onClick={nextMonth}>Next</button>
+      </div>
+
+  </div>
+
+  <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'16px', marginBottom:'12px'}}>
+
+    <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+      <input className="login-input" placeholder="'Meeting tomorrow at 9am'" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:250}} />
+
+      <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>
+        Quick Add
+      </button>
+
+      <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
+    </div>
+
+    <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8}}>
+      <button className="btn create-task-btn" onClick={()=>openCreateFor(viewDate.toISOString())}>
+        + Create Task
+      </button>
+    </div>
+
+  </div>
 
               {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
         {(view === 'month' || view === 'week' || view === 'day') && (

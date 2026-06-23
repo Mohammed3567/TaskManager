@@ -111,11 +111,11 @@ export default function FocusTimer({ defaultMinutes = 25, defaultSeconds = 0, on
         <div style={{display:'flex', gap:8, alignItems:'center'}}>
           <div style={{display:'flex', gap:6, alignItems:'center'}}>
             <label className="small" style={{opacity:0.9}}>Min</label>
-            <input className="timer-number-input" type="number" min={0} value={minutes} onChange={e=>setMinutes(Math.max(0, parseInt(e.target.value || '0')))} disabled={running} style={{width:84}} />
+            <input className="timer-number-input" type="text" inputMode="numeric" value={minutes} onChange={e=>setMinutes(Math.max(0, parseInt(e.target.value.replace(/\D/g,'' ) || '0',10)))} disabled={running} style={{width:84}} />
           </div>
           <div style={{display:'flex', gap:6, alignItems:'center'}}>
-            <label className="small" style={{opacity:0.9}}>Sec</label>
-            <input className="timer-number-input" type="number" min={0} max={59} value={seconds} onChange={e=>setSeconds(Math.max(0, Math.min(59, parseInt(e.target.value || '0'))))} disabled={running} style={{width:72}} />
+            <label className="small" style={{opacity:0.9}}>Sec</label>  
+            <input className="timer-number-input" type="text" inputMode="numeric" value={seconds} onChange={e=>setSeconds(Math.min(59, Math.max(0, parseInt(e.target.value.replace(/\D/g,'' ) || '0'))))} disabled={running} style={{width:84}} />
           </div>
 
           {!running ? (

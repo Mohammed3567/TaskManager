@@ -27,6 +27,26 @@ html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -ap
 .occ-item { background: rgba(124,58,237,0.08); padding:3px 6px; border-radius:6px; margin-bottom:4px; font-size:12px; color:#dfe7ff }
 .login-input { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; margin-right:8px }
 
+.create-task-btn {
+  background: linear-gradient(
+    135deg,
+    #7c3aed,
+    #8b5cf6
+  );
+
+  color: white;
+
+  font-weight: 700;
+
+  min-width: 150px;
+
+  box-shadow:
+    0 0 10px rgba(124,58,237,.25);
+
+  border: none;}
+
+.create-task-btn:hover {transform: translateY(-2px);}
+
 .confirm-box { background: rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); padding:10px; border-radius:8px; display:flex; gap:8px; align-items:center }
 .btn .icon { margin-right:6px }
 
@@ -47,7 +67,7 @@ html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -ap
 /* Auth modal styling */
 .auth-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.6); z-index:1200 }
 .auth-card { width:520px; background:#071027; padding:24px; border-radius:12px; box-shadow: 0 10px 30px rgba(124,58,237,0.12), 0 6px 18px rgba(2,6,23,0.7); border:1px solid rgba(124,58,237,0.08) }
-.auth-card .login-input { display:block; width:100%; margin:12px 0; }
+.auth-card .login-input { display:block; width:100%; margin:12px 0; padding:12px; box-sizing:border-box;}
 .auth-card h2 { margin-top:0; margin-bottom:8px; font-size:20px }
 
 /* Timer inputs styling */
@@ -96,17 +116,48 @@ select, .login-input, .templates-select { background-clip: padding-box }
 }
 .react-datepicker__triangle { display:none }
 .react-datepicker__header {
+	display:flex;
+	align-items:center;
+	justify-content:center;
+	gap:12px;
 	background: linear-gradient(90deg,var(--accent), #4f46e5);
 	border-bottom: 1px solid rgba(255,255,255,0.04);
 	color: white;
-	padding-top:10px;
+	padding:8px 10px;
 	border-top-left-radius: 10px;
 	border-top-right-radius: 10px;
 }
-.react-datepicker__current-month { font-weight:700 }
+.react-datepicker__current-month { font-weight:700; font-size:14px }
 .react-datepicker__day-name, .react-datepicker__day { color: #e6eef8 }
-.react-datepicker__day--selected { background: var(--accent) !important; color: white !important; border-radius:8px }
+.react-datepicker__day--selected { background: transparent !important; color: inherit !important; box-shadow: none !important }
+.react-datepicker__navigation { top: 12px !important; }
+
+.react-datepicker__navigation-icon::before {
+  border-color: #ffffff !important;
+}
+
+.react-datepicker__day--keyboard-selected {
+  background: transparent !important;
+  color: inherit !important;
+  box-shadow: none !important;
+}
+
+.react-datepicker__day--keyboard-selected:hover {
+  background: transparent !important;
+}
+
+.react-datepicker__day:hover {
+  background: rgba(124,58,237,0.35) !important;
+  color: #e6eef8 !important;
+}
+
+.react-datepicker__day.app-day-custom-selected { background: var(--accent) !important; color: white !important; border-radius:8px; box-shadow: 0 6px 18px rgba(124,58,237,0.12) }
+
+.react-datepicker__day--outside-month { opacity: 0.55; color: var(--muted) }
+
+.react-datepicker__day--outside-month.app-day-custom-selected { opacity: 1; color: white }
+
 .react-datepicker__day--today { border:1px solid rgba(124,58,237,0.25); border-radius:6px }
-.react-datepicker__navigation { color: white }
+
 .date-picker-wrapper { display:inline-block }
 .react-datepicker__month-container { border-radius: 8px }

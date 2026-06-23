@@ -4,6 +4,11 @@ import { createTask, updateTask, deleteTask } from '../api'
 import ConfirmationDialog from './ConfirmationDialog'
 import 'react-datepicker/dist/react-datepicker.css'
 
+function isSameDate(a?: Date | null, b?: Date | null) {
+  if (!a || !b) return false
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
 function isoToDate(iso?: string | null) {
   if (!iso) return null
   const ymdMatch = typeof iso === 'string' && iso.match(/^\d{4}-\d{2}-\d{2}$/)
@@ -101,16 +106,24 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
         <form onSubmit={save}>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
             <input className="login-input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} />
-            <DatePicker selected={date} onChange={(d: Date | null) => setDate(d)} dateFormat="yyyy-MM-dd" className="login-input" wrapperClassName="date-picker-wrapper" calendarClassName="react-datepicker-dark" />
+            <DatePicker
+              selected={date}
+              onChange={(d: Date | null) => setDate(d)}
+              dateFormat="yyyy-MM-dd"
+              className="login-input"
+              wrapperClassName="date-picker-wrapper"
+              calendarClassName="react-datepicker-dark"
+              dayClassName={(d:Date) => isSameDate(d, date) ? 'app-day-custom-selected' : ''}
+            />
           </div>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
             <select className="priority-select" value={priority} onChange={e=>setPriority(e.target.value)}>
-              <option value="CRITICAL">CRITICAL</option>
-              <option value="IMPORTANT">IMPORTANT</option>
               <option value="ROUTINE">ROUTINE</option>
+              <option value="IMPORTANT">IMPORTANT</option>
+              <option value="CRITICAL">CRITICAL</option>
             </select>
             <input className="login-input" placeholder="Tags (comma)" value={tagNames} onChange={e=>setTagNames(e.target.value)} />
-            <input className="login-input" type="number" placeholder="Duration (min)" value={durationMinutes ?? ''} onChange={e=>setDurationMinutes(e.target.value ? parseInt(e.target.value) : null)} />
+            <input className="login-input" type="text" inputMode="numeric" placeholder="Duration (min)" value={durationMinutes ?? ''} onChange={(e)=>{const v=e.target.value.replace(/\D/g,''); setDurationMinutes(v ? parseInt(v,10) : null)}} />
           </div>
           <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
             {/* simplified: removed recurring / RRULE UI to keep task creation simple */}
