@@ -61,7 +61,7 @@ export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurre
               ) : (
                 dayItems.map((item: any) => (
                   <div key={item.task_id + item.date} style={{ marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor:'pointer', padding:'6px 8px', borderRadius:8, background: 'rgba(255,255,255,0.02)' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
+                    <div className={`week-task ${item.priority?.toLowerCase()}`} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 8px', borderRadius:8 }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
                       <input
                         type="checkbox"
                         checked={item.status === 'COMPLETED'}

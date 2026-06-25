@@ -4,9 +4,17 @@ type Props = {
   defaultMinutes?: number
   defaultSeconds?: number
   onClose?: () => void
+  onHide?: () => void
+  hidden?: boolean
 }
 
-export default function FocusTimer({ defaultMinutes = 25, defaultSeconds = 0, onClose }: Props) {
+export default function FocusTimer({
+  defaultMinutes = 25,
+  defaultSeconds = 0,
+  onClose,
+  hidden = false,
+  onHide
+}: Props) {
   const [minutes, setMinutes] = useState(defaultMinutes)
   const [seconds, setSeconds] = useState(defaultSeconds)
   const [running, setRunning] = useState(false)
@@ -79,18 +87,28 @@ export default function FocusTimer({ defaultMinutes = 25, defaultSeconds = 0, on
       try {
         g.gain.setValueAtTime(0.001, now)
         g.gain.linearRampToValueAtTime(0.5, now + 0.02)
-        g.gain.linearRampToValueAtTime(0.001, now + 0.7)
+       g.gain.linearRampToValueAtTime(0.6, now + .1)
+       g.gain.linearRampToValueAtTime(.6, now + 3)
+       g.gain.linearRampToValueAtTime(.001, now + 4)
       } catch (e) {
         // some browsers disallow precise scheduling, ignore
       }
       o.start(now)
-      o.stop(now + 0.75)
-      setTimeout(()=> { try { ctx.close() } catch(e){} }, 900)
+      o.stop(now + 3)
+      setTimeout(()=> { try { ctx.close() } catch(e){} }, 3500)
     } catch (e) { /* ignore */ }
   }
 
   return (
-    <div style={{position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(180deg, rgba(7,16,39,0.6), rgba(2,6,23,0.6))', zIndex:1200}}>
+    <div style={{
+      position:'fixed',
+      inset:0,
+      display: hidden ? 'none' : 'flex',
+      alignItems:'center',
+      justifyContent:'center',
+      background:'rgba(7,16,39,.45)',
+      zIndex:1200
+    }}>
       <div style={{width:480, background:'#071027', padding:18, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', gap:12, position:'relative'}}>
         <div style={{position:'relative', width:size, height:size}}>
           <svg width={size} height={size}>
@@ -119,13 +137,61 @@ export default function FocusTimer({ defaultMinutes = 25, defaultSeconds = 0, on
           </div>
 
           {!running ? (
-            <button className="btn primary" onClick={() => { if (remaining <= 0) setRemaining((minutes*60)+(seconds)); setTotal((minutes*60)+(seconds)); setRunning(true); setCompleted(false); }}>Start</button>
-          ) : (
-            <button className="btn" onClick={() => { setRunning(false); if (timerRef.current) window.clearInterval(timerRef.current) }}>Pause</button>
-          )}
-          <button className="btn" onClick={() => { setRunning(false); if (timerRef.current) window.clearInterval(timerRef.current); setRemaining(total); setCompleted(false); }}>Reset</button>
-          <button className="btn" onClick={() => { setRunning(false); if (timerRef.current) window.clearInterval(timerRef.current); if (onClose) onClose(); }}>Close</button>
-        </div>
+  <button
+    className="btn primary"
+    onClick={() => {
+      if (remaining <= 0) setRemaining((minutes * 60) + seconds)
+      setTotal((minutes * 60) + seconds)
+      setRunning(true)
+      setCompleted(false)
+    }}
+  >
+    Start
+  </button>
+) : (
+  <button
+    className="btn"
+    onClick={() => {
+      setRunning(false)
+      if (timerRef.current) window.clearInterval(timerRef.current)
+    }}
+  >
+    Pause
+  </button>
+)}
+
+<button
+  className="btn"
+  onClick={() => {
+    setRunning(false)
+    if (timerRef.current) window.clearInterval(timerRef.current)
+    setRemaining(total)
+    setCompleted(false)
+  }}
+>
+  Reset
+</button>
+
+<button
+  className="btn"
+  onClick={() => {
+    onHide?.()
+  }}
+>
+  Hide
+</button>
+
+<button
+  className="btn timer-close-btn"
+  onClick={() => {
+    setRunning(false)
+    if (timerRef.current) window.clearInterval(timerRef.current)
+    onClose?.()
+  }}
+>
+  Close
+</button>
+</div>
 
         <div style={{display:'flex', gap:8}}>
           <button className="btn" onClick={()=>{ setMinutes(15); setSeconds(0) }}>15:00</button>

@@ -4,6 +4,7 @@ type Occurrence = {
   task_id: string
   title: string
   date: string
+  priority: string
   status?: string
   is_recurring?: boolean
 }
@@ -82,7 +83,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
               </div>
               <div style={{marginTop:8}}>
                 {items.slice(0,3).map(it => (
-                  <div key={it.task_id + it.date} className="occ-item" style={{display:'flex', alignItems:'center', gap:8}}>
+                  <div key={it.task_id + it.date} className={`occ-item ${it.priority?.toLowerCase()}`} style={{display:'flex', alignItems:'center', gap:8}}>
                     <input
                       type="checkbox"
                       checked={it.status === 'COMPLETED'}

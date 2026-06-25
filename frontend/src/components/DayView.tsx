@@ -62,11 +62,16 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
         {PRIORITIES.map(priority => {
           const sectionItems = grouped[priority.key] || []
-          return (
-            <div key={priority.key} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 14 }}>
+          return (   
+            <div key={priority.key} className={`day-column ${priority.key.toLowerCase()}`} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 14, padding: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{priority.label}</div>
+                  <div
+                      className={`priority-heading ${priority.key.toLowerCase()}`}
+                      style={{ fontSize:14, fontWeight:700 }}
+                    >
+                    {priority.label}
+                  </div>
                   <div className="small">{sectionItems.length} tasks</div>
                 </div>
                 <button className="btn" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate)}>

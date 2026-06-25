@@ -161,3 +161,49 @@ select, .login-input, .templates-select { background-clip: padding-box }
 
 .date-picker-wrapper { display:inline-block }
 .react-datepicker__month-container { border-radius: 8px }
+
+.loading-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.occ-item.routine{border-left:4px solid #3b82f6;background:rgba(59,130,246,.12)}
+.occ-item.important{border-left:4px solid #f59e0b;background:rgba(245,158,11,.12)}
+.occ-item.critical{border-left:4px solid #ef4444;background:rgba(239,68,68,.12)}
+.week-task.routine{border-left:4px solid #3b82f6;background:rgba(59,130,246,.12)}
+.week-task.important{border-left:4px solid #f59e0b;background:rgba(245,158,11,.12)}
+.week-task.critical{border-left:4px solid #ef4444;background:rgba(239,68,68,.12)}
+
+.day-column{border-radius:14px;padding:14px}
+.day-column.critical{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25)}
+.day-column.important{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25)}
+.day-column.routine{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25)}
+
+.priority-heading.critical{color:#ef4444}
+.priority-heading.important{color:#f59e0b}
+.priority-heading.routine{color:#60a5fa}
+
+.today-focus{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;}
+.priority-group{background:rgba(255,255,255,.03);border-radius:12px;padding:14px;}
+.priority-group h4{margin-bottom:10px;}
+.priority-group div{padding:8px 10px;border-radius:8px;margin-bottom:8px;}
+.priority-group.critical h4{color:#ff5d5d;}
+.priority-group.important h4{color:#ffb020;}
+.priority-group.routine h4{color:#4da3ff;}
+.priority-group.critical div{background:rgba(255,93,93,.12);}
+.priority-group.important div{background:rgba(255,176,32,.12);}
+.priority-group.routine div{background:rgba(77,163,255,.12);}
+
+.today-focus{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:12px;margin-bottom:24px;}
+.priority-group h4{margin:0 0 10px 0;}
+
+.progress-bar{width:100%;height:10px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin:12px 0}
+.progress-fill{height:100%;background:linear-gradient(90deg,#22c55e,#3b82f6);border-radius:999px;transition:width .3s}
+
+.timer-close-btn{background:rgba(255,255,255,.04);}
+.timer-close-btn:hover{background:#dc2626;color:white;transform:translateY(-1px);}
+.timer-close-btn:active{background:#b91c1c;color:white;}

@@ -75,12 +75,12 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       onSaved && onSaved(res)
       onClose()
     } catch (err) {
-      alert('Save failed')
+      console.error(err)
     } finally { setSaving(false) }
   }
 
   function openTaskDeleteConfirm() {
-    if (!task || !task.id) return alert('Save task first to delete it')
+    if (!task || !task.id) return
     setConfirmOpen(true)
   }
 
@@ -88,12 +88,11 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
     if (!task || !task.id) { setConfirmOpen(false); return }
     try {
       await deleteTask(task.id)
-      alert('Task deleted')
       onSaved && onSaved(null)
       onClose()
     } catch (err) {
       console.error(err)
-      alert((err as any)?.message || 'Action failed')
+      console.error(err)
     } finally {
       setConfirmOpen(false)
     }

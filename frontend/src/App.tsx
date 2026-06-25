@@ -54,6 +54,7 @@ export default function App() {
   const [occ, setOcc] = useState<any[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<any | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [u, setU] = useState('')
   const [p, setP] = useState('')
   const [viewDate, setViewDate] = useState<Date>(new Date())
@@ -62,6 +63,7 @@ export default function App() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [quickText, setQuickText] = useState('')
   const [showTimer, setShowTimer] = useState(false)
+  const [timerMounted, setTimerMounted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
@@ -79,7 +81,7 @@ export default function App() {
       const res = await login(u, p)
       setUser(res)
     } catch (err) {
-      alert('Login failed')
+      console.error(err)
     }
   }
 
@@ -113,10 +115,24 @@ export default function App() {
   }, [user, viewDate, view])
 
   useEffect(() => {
-    // check existing session on mount
-    let mounted = true
-    getMe().then((u:any)=>{ if (mounted && u) setUser(u) }).catch(()=>{})
-    return ()=>{ mounted = false }
+  let mounted = true
+
+  getMe()
+    .then((u: any) => {
+      if (mounted && u) {
+        setUser(u)
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      if (mounted) {
+        setCheckingAuth(false)
+      }
+    })
+
+  return () => {
+    mounted = false
+    }
   }, [])
 
   useEffect(() => {
@@ -168,11 +184,9 @@ export default function App() {
   }
 
   function openCreateFor(dateISO: string) {
-    // set the calendar view date to the clicked date so Day view will reflect newly created tasks
     const parsed = parseIsoOrYmd(dateISO)
     setViewDate(parsed)
     setModalDate(dateISO)
-    // do not open modal in "occurrence edit" mode — simplified UI
     setEditingTask(null)
     setModalOpen(true)
   }
@@ -189,7 +203,7 @@ export default function App() {
       // occurrence overrides are hidden from the UI
       setModalOpen(true)
     } catch (err) {
-      alert('Failed to load task')
+      console.error(err)
     }
   }
 
@@ -217,7 +231,6 @@ export default function App() {
       loadOccurrences(viewDate, view)
     } catch (err: any) {
       console.error(err)
-      alert(err?.message || 'Failed to update task status')
     }
   }
 
@@ -299,6 +312,15 @@ export default function App() {
     )
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="app">
+        <div className="loading-screen">
+          Loading...
+        </div>
+      </div>
+    )
+  } 
   return (
     <div className="app">
       {!user ? (
@@ -310,7 +332,7 @@ export default function App() {
         <div className="brand">Task Manager</div>
         <div className="controls" style={{display:'flex', alignItems:'center', gap:12}}>
           <div className="small">Signed in as {user.username}</div>
-          <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); alert('Logout failed') } }}>Logout</button>
+          <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); console.error(e) } }}>Logout</button>
         </div>
       </div>
 
@@ -322,7 +344,15 @@ export default function App() {
       <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
       <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
       <button className={`btn ${view==='analytics' ? 'active' : ''}`} onClick={()=>setView('analytics')}>Dashboard</button>
-      <button className="btn" onClick={()=>setShowTimer(s=>!s)}>{showTimer ? 'Hide Timer' : 'Focus Timer'}</button>
+      <button
+  className="btn"
+  onClick={() => {
+    if (!timerMounted) setTimerMounted(true)
+    setShowTimer(s => !s)
+  }}
+>
+  {showTimer ? 'Hide Timer' : 'Focus Timer'}
+</button>
     </div>
 
     <div style={{display:'flex', gap:8}}>
@@ -332,16 +362,17 @@ export default function App() {
 
   </div>
 
+ 
   <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'16px', marginBottom:'12px'}}>
 
-    <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+    <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>  
       <input className="login-input" placeholder="'Meeting tomorrow at 9am'" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:250}} />
 
-      <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>
+      <button className="btn" onClick={async ()=>{ if (!quickText) return; try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); } catch (err:any) { console.error(err) } }}>   
         Quick Add
       </button>
 
-      <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
+      <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); } catch (err) { console.error(err); } }} />
     </div>
 
     <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8}}>
@@ -351,8 +382,16 @@ export default function App() {
     </div>
 
   </div>
-
-              {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
+        {timerMounted && (
+  <FocusTimer
+    hidden={!showTimer}
+    onHide={() => setShowTimer(false)}
+    onClose={() => {
+      setShowTimer(false)
+      setTimerMounted(false)
+    }}
+  />
+)}
         {(view === 'month' || view === 'week' || view === 'day') && (
           <div className="top-left-header">
             <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, viewDate)}</div>
