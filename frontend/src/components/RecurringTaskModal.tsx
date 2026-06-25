@@ -47,7 +47,7 @@ function buildRecurrenceRule(freq: string, count: number, days: string[]) {
   if (freq === 'WEEKLY' && days.length) {
     parts.push(`BYDAY=${days.join(',')}`)
   }
-  parts.push(`COUNT=${count || 5}`)
+  parts.push(`COUNT=${Math.max(1, count || 1)}`)
   return parts.join(';')
 }
 
@@ -55,8 +55,9 @@ function snapToWeekday(d: Date, dayCode: string) {
   const targetIdx = WEEKDAY_CODES.indexOf(dayCode)
   if (targetIdx < 0) return new Date(d)
   const result = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const diff = (result.getDay() - targetIdx + 7) % 7
-  result.setDate(result.getDate() - diff)
+  // Move forward to the next occurrence of the target weekday (0 if already on it)
+  const diff = (targetIdx - result.getDay() + 7) % 7
+  result.setDate(result.getDate() + diff)
   return result
 }
 
@@ -114,9 +115,10 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
 
     const parsedRule = parseRecurrenceRule(source.series_recurrence_rule || task?.series_recurrence_rule || source.recurrence_rule || task?.recurrence_rule)
     if (parsedRule && parsedRule.freq) {
-      setRepeatFrequency(parsedRule.freq === 'WEEKLY' ? 'WEEKLY' : 'DAILY')
-      setRepeatCount(parsedRule.count ?? 5)
-      if (parsedRule.freq === 'WEEKLY') {
+      const isWeekly = parsedRule.freq === 'WEEKLY'
+      setRepeatFrequency(isWeekly ? 'WEEKLY' : 'DAILY')
+      setRepeatCount(parsedRule.count ?? (isWeekly ? 4 : 5))
+      if (isWeekly) {
         setRepeatDays(parsedRule.byDay.length ? parsedRule.byDay : taskDate ? [weekdayCode(taskDate)] : ['MO'])
       } else {
         setRepeatDays([])
@@ -129,7 +131,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   }
 
   function toggleRepeatDay(day: string) {
-    setRepeatDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+    setRepeatDays([day])
   }
 
   if (!open) return null
@@ -305,7 +307,11 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
             </select>
           </div>
           <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
-            <select className="priority-select" value={repeatFrequency} onChange={e=>setRepeatFrequency(e.target.value as RepeatFrequency)}>
+            <select className="priority-select" value={repeatFrequency} onChange={e => {
+              const f = e.target.value as RepeatFrequency
+              setRepeatFrequency(f)
+              if (f === 'WEEKLY') setRepeatCount(4)
+            }}>
               <option value="DAILY">Daily</option>
               <option value="WEEKLY">Weekly</option>
             </select>
@@ -321,10 +327,14 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
             <input
               className="login-input"
               type="number"
-              min={2}
+              min={1}
               placeholder="Occurrences"
-              value={repeatCount}
-              onChange={e => setRepeatCount(Math.max(2, parseInt(e.target.value, 10) || 2))}
+              value={repeatCount > 0 ? repeatCount : ''}
+              onChange={e => {
+                if (e.target.value === '') { setRepeatCount(0); return }
+                const n = parseInt(e.target.value, 10)
+                if (!isNaN(n)) setRepeatCount(n)
+              }}
               style={{width:140}}
             />
           </div>

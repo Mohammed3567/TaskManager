@@ -47,7 +47,7 @@ function buildRecurrenceRule(freq: string, count: number, days: string[]) {
   if (freq === 'WEEKLY' && days.length) {
     parts.push(`BYDAY=${days.join(',')}`)
   }
-  parts.push(`COUNT=${count || 5}`)
+  parts.push(`COUNT=${Math.max(1, count || 1)}`)
   return parts.join(';')
 }
 
@@ -110,7 +110,7 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task }:
   }, [isRecurring, repeatFrequency, repeatDays.length, date])
 
   function toggleRepeatDay(day: string) {
-    setRepeatDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+    setRepeatDays([day])
   }
 
   if (!open) return null
@@ -202,7 +202,11 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task }:
               </label>
               {isRecurring && (
                 <>
-                  <select className="priority-select" value={repeatFrequency} onChange={e=>setRepeatFrequency(e.target.value as RepeatFrequency)}>
+                  <select className="priority-select" value={repeatFrequency} onChange={e => {
+                    const f = e.target.value as RepeatFrequency
+                    setRepeatFrequency(f)
+                    if (f === 'WEEKLY') setRepeatCount(4)
+                  }}>
                     <option value="DAILY">Daily</option>
                     <option value="WEEKLY">Weekly</option>
                   </select>
@@ -218,10 +222,14 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task }:
                   <input
                     className="login-input"
                     type="number"
-                    min={2}
+                    min={1}
                     placeholder="Occurrences"
-                    value={repeatCount}
-                    onChange={e => setRepeatCount(Math.max(2, parseInt(e.target.value, 10) || 2))}
+                    value={repeatCount > 0 ? repeatCount : ''}
+                    onChange={e => {
+                      if (e.target.value === '') { setRepeatCount(0); return }
+                      const n = parseInt(e.target.value, 10)
+                      if (!isNaN(n)) setRepeatCount(n)
+                    }}
                     style={{width:140}}
                   />
                 </>
