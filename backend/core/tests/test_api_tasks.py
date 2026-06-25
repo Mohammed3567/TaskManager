@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from django.utils import timezone
 from datetime import datetime, timedelta
-from ..models import Task, RecurrenceException
+from core.models import Task, RecurrenceException
 
 
 class TaskAPITests(TestCase):

@@ -5,6 +5,8 @@ type Occurrence = {
   title: string
   date: string
   priority: string
+  occurrence_date?: string
+  original_occurrence_date?: string
   status?: string
   is_recurring?: boolean
 }
@@ -34,7 +36,7 @@ function toYMD(d: Date) {
   }
 }
 
-export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void }) {
+export default function MonthView({ occurrences, monthDate, onDayClick, onOccurrenceClick, onToggleStatus }: { occurrences: Occurrence[] | any; monthDate?: Date; onDayClick?: (isoDate:string)=>void; onOccurrenceClick?: (taskId:string, iso:string, occurrence?: Occurrence)=>void; onToggleStatus?: (taskId:string, iso:string, isRecurring:boolean, done:boolean)=>void }) {
   const base = monthDate || new Date()
   const start = startOfMonth(base)
   // compute start weekday with Monday as 0 (so Monday..Sunday => 0..6)
@@ -90,12 +92,13 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
                       onClick={e => e.stopPropagation()}
                       onChange={e => {
                         e.stopPropagation()
-                        if (typeof onToggleStatus === 'function') onToggleStatus(it.task_id, it.date, Boolean(it.is_recurring), e.target.checked)
+                        const occurrenceKey = it.original_occurrence_date || it.occurrence_date || it.date
+                        if (typeof onToggleStatus === 'function') onToggleStatus(it.task_id, occurrenceKey, Boolean(it.is_recurring), e.target.checked)
                       }}
                     />
                     <div
                       style={{flex:1, textDecoration: it.status === 'COMPLETED' ? 'line-through' : 'none', cursor:'pointer'}}
-                      onClick={e => { e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date) }}
+                      onClick={e => { e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date, it) }}
                     >
                       {it.title}
                     </div>

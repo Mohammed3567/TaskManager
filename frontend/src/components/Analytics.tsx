@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { getAnalytics } from '../api'
 import { getOccurrences } from '../api'
 
-export default function Analytics() {
+export default function Analytics({ refreshKey }: { refreshKey?: number }) {
   const [data, setData] = useState<any | null>(null)
   const [todayTasks, setTodayTasks] = useState<any[]>([])
   const [weekTasks, setWeekTasks] = useState<any[]>([])
@@ -70,7 +70,7 @@ setMonthTasks(monthOcc)
   }
 
   loadAnalytics()
-}, [])
+  }, [refreshKey])
 
   if (loading) return <div className="card">Loading analytics...</div>
   if (!data) return <div className="card">No analytics available</div>
@@ -218,6 +218,7 @@ setMonthTasks(monthOcc)
 </div>
 
       <div style={{marginTop:24,padding:16,borderRadius:12,background:'rgba(255,255,255,.03)'}}>
+
         <h4 style={{margin:0}}>Current streak</h4>
         <div style={{fontSize:20, fontWeight:700,color:'#8b5cf6'}}>{data.current_streak_days} days</div>
       </div>

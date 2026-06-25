@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.utils.dateparse import parse_datetime
 from .models import Task, Tag, RecurrenceException
 from .serializers import TaskSerializer, TagSerializer
-from .utils import expand_recurring_tasks
+from .utils import expand_recurring_tasks, normalize_occurrence_dt
 from rest_framework.views import APIView
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
@@ -91,13 +91,24 @@ class TaskViewSet(viewsets.ModelViewSet):
         occ_dt = parse_datetime(occurrence)
         if occ_dt is None:
             raise ValidationError('invalid occurrence datetime')
-        return occ_dt
+        return normalize_occurrence_dt(occ_dt)
+
+    def _find_exception(self, task, occ_dt):
+        occ_n = normalize_occurrence_dt(occ_dt)
+        for exc in task.exceptions.all():
+            if normalize_occurrence_dt(exc.occurrence_date) == occ_n:
+                return exc
+        return None
 
     def _save_instance_exception(self, task, request, delete_only=False):
         if not task.is_recurring:
             raise ValidationError('cannot manage instance exceptions for non-recurring tasks')
         occ_dt = self._parse_occurrence(request)
-        exception, _ = RecurrenceException.objects.get_or_create(task=task, occurrence_date=occ_dt)
+        exception = self._find_exception(task, occ_dt)
+        if exception is None:
+            exception = RecurrenceException.objects.create(task=task, occurrence_date=occ_dt)
+        elif exception.occurrence_date != occ_dt:
+            exception.occurrence_date = occ_dt
         if delete_only:
             exception.is_deleted = True
             exception.override_data = None
@@ -273,50 +284,3 @@ class AnalyticsView(APIView):
         })
 
 
-class QuickAddView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        text = (request.data.get('text') or '').strip()
-        if not text:
-            return Response({'detail': 'text is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        now = timezone.now()
-        date = now
-        # simple NLP heuristics
-        if re.search(r'\btomorrow\b', text, re.I):
-            date = now + datetime.timedelta(days=1)
-        elif re.search(r'\btoday\b', text, re.I):
-            date = now
-        else:
-            m = re.search(r'\bin (\d+) days?\b', text, re.I)
-            if m:
-                days = int(m.group(1))
-                date = now + datetime.timedelta(days=days)
-
-        # parse time expressions like 'at 9am' or 'at 9:30 pm'
-        tm = re.search(r'at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?', text, re.I)
-        if tm:
-            hour = int(tm.group(1))
-            minute = int(tm.group(2) or 0)
-            ampm = tm.group(3)
-            if ampm:
-                if ampm.lower() == 'pm' and hour < 12:
-                    hour += 12
-                if ampm.lower() == 'am' and hour == 12:
-                    hour = 0
-            date = date.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        else:
-            # default to 09:00 local
-            date = date.replace(hour=9, minute=0, second=0, microsecond=0)
-
-        # create task with minimal required fields
-        payload = {
-            'title': text,
-            'date': date.isoformat(),
-            'priority': 'IMPORTANT'
-        }
-        serializer = TaskSerializer(data=payload)
-        serializer.is_valid(raise_exception=True)
-        task = serializer.save(user=request.user)
-        return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)

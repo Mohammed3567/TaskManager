@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from ..models import Task, RecurrenceException, Tag
+from core.models import Task, RecurrenceException, Tag
 from django.utils import timezone
 from datetime import datetime, timedelta
 
@@ -21,7 +21,7 @@ class RecurrenceExpansionTests(TestCase):
             recurrence_rule='FREQ=WEEKLY;COUNT=3'
         )
 
-        from ..utils import expand_recurring_tasks
+        from core.utils import expand_recurring_tasks
 
         end = start + timedelta(days=21)
         occurrences = expand_recurring_tasks([task], RecurrenceException.objects.none(), start, end)
@@ -41,8 +41,52 @@ class RecurrenceExpansionTests(TestCase):
         second_occ = start + timedelta(weeks=1)
         RecurrenceException.objects.create(task=task, occurrence_date=second_occ, is_deleted=True)
 
-        from ..utils import expand_recurring_tasks
+        from core.utils import expand_recurring_tasks
 
         end = start + timedelta(days=21)
         occurrences = expand_recurring_tasks([task], RecurrenceException.objects.filter(task=task), start, end)
         self.assertEqual(len(occurrences), 2)
+
+    def test_weekly_byday_expansion(self):
+        start = timezone.make_aware(datetime(2026, 6, 2, 9, 0, 0))
+        task = Task.objects.create(
+            user=self.user,
+            title='Monday Task',
+            date=start,
+            priority='ROUTINE',
+            is_recurring=True,
+            recurrence_rule='FREQ=WEEKLY;BYDAY=MO;COUNT=3',
+            timezone='UTC',
+        )
+
+        from core.utils import expand_recurring_tasks
+
+        end = start + timedelta(days=30)
+        occurrences = expand_recurring_tasks([task], RecurrenceException.objects.none(), start, end)
+        self.assertEqual(len(occurrences), 3)
+        for occ in occurrences:
+            self.assertEqual(datetime.fromisoformat(occ['date']).weekday(), 0)
+
+    def test_exception_delete_matches_by_timestamp(self):
+        start = timezone.make_aware(datetime(2026, 6, 1, 9, 0, 0))
+        task = Task.objects.create(
+            user=self.user,
+            title='Weekly Task',
+            date=start,
+            priority='ROUTINE',
+            is_recurring=True,
+            recurrence_rule='FREQ=WEEKLY;COUNT=5',
+            timezone='UTC',
+        )
+        second_occ = start + timedelta(weeks=1)
+        RecurrenceException.objects.create(
+            task=task,
+            occurrence_date=second_occ.replace(microsecond=500),
+            is_deleted=True,
+        )
+
+        from core.utils import expand_recurring_tasks
+
+        end = start + timedelta(days=60)
+        occurrences = expand_recurring_tasks([task], RecurrenceException.objects.filter(task=task), start, end)
+        self.assertEqual(len(occurrences), 4)

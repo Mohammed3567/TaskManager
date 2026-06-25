@@ -21,32 +21,97 @@ function isoToDate(iso?: string | null) {
   return d
 }
 
+const WEEKDAY_CODES = ['SU','MO','TU','WE','TH','FR','SA']
+type RepeatFrequency = 'DAILY'|'WEEKLY'
+
+function weekdayCode(d: Date) {
+  return WEEKDAY_CODES[d.getDay()]
+}
+
+function parseRecurrenceRule(rule?: string) {
+  if (!rule) return null
+  const parts = rule.split(';').reduce((acc, raw) => {
+    const [key, value] = raw.split('=')
+    if (key && value) acc[key] = value
+    return acc
+  }, {} as Record<string, string>)
+  return {
+    freq: parts.FREQ,
+    count: parts.COUNT ? parseInt(parts.COUNT, 10) : undefined,
+    byDay: parts.BYDAY ? parts.BYDAY.split(',').filter(Boolean) : []
+  }
+}
+
+function buildRecurrenceRule(freq: string, count: number, days: string[]) {
+  const parts = [`FREQ=${freq}`]
+  if (freq === 'WEEKLY' && days.length) {
+    parts.push(`BYDAY=${days.join(',')}`)
+  }
+  parts.push(`COUNT=${Math.max(1, count || 1)}`)
+  return parts.join(';')
+}
+
+function browserTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
 // helper to convert ISO -> YYYY-MM-DD for date inputs
 
-export default function TaskModal({ open, onClose, onSaved, initialDate, task, occurrenceDate, initialDurationMinutes }: any) {
+export default function TaskModal({ open, onClose, onSaved, initialDate, task }: any) {
   const [title, setTitle] = useState(task?.title || '')
   const [date, setDate] = useState<Date | null>(task?.date ? isoToDate(task.date) : (initialDate ? isoToDate(initialDate) : null))
   const [priority, setPriority] = useState(task?.priority || 'ROUTINE')
-  const [tagNames, setTagNames] = useState((task && task.tags) ? task.tags.map((t: any)=>t.name).join(',') : '')
-  const [durationMinutes, setDurationMinutes] = useState<number | null>(task?.duration_minutes ?? (initialDurationMinutes ?? null))
+  const [isRecurring, setIsRecurring] = useState(task?.is_recurring ?? false)
+  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('DAILY')
+  const [repeatDays, setRepeatDays] = useState<string[]>([])
+  const [repeatCount, setRepeatCount] = useState<number>(5)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (task) {
+      const taskDate = task.date ? isoToDate(task.date) : (initialDate ? isoToDate(initialDate) : null)
       setTitle(task.title || '')
-      setDate(task.date ? isoToDate(task.date) : (initialDate ? isoToDate(initialDate) : null))
+      setDate(taskDate)
       setPriority(task.priority || 'ROUTINE')
-      setDurationMinutes(task.duration_minutes ?? initialDurationMinutes ?? null)
+      setIsRecurring(!!task.is_recurring)
+      const parsedRule = parseRecurrenceRule(task.recurrence_rule)
+      if (parsedRule && parsedRule.freq) {
+        setRepeatFrequency(parsedRule.freq === 'WEEKLY' ? 'WEEKLY' : 'DAILY')
+        setRepeatCount(parsedRule.count ?? 5)
+        if (parsedRule.freq === 'WEEKLY') {
+          setRepeatDays(parsedRule.byDay.length ? parsedRule.byDay : taskDate ? [weekdayCode(taskDate)] : ['MO'])
+        } else {
+          setRepeatDays([])
+        }
+      } else {
+        setRepeatFrequency('DAILY')
+        setRepeatCount(5)
+        setRepeatDays(taskDate ? [weekdayCode(taskDate)] : ['MO'])
+      }
     }
   }, [task, initialDate])
 
   useEffect(() => {
     if (!task) {
-      if (initialDate) setDate(isoToDate(initialDate))
-      if (initialDurationMinutes) setDurationMinutes(initialDurationMinutes)
+      const initial = isoToDate(initialDate) ?? new Date()
+      setDate(initial)
+      setIsRecurring(false)
+      setRepeatFrequency('DAILY')
+      setRepeatDays([weekdayCode(initial)])
+      setRepeatCount(5)
     }
-  }, [initialDate, initialDurationMinutes, task])
+  }, [initialDate, task])
+
+  useEffect(() => {
+    if (isRecurring && repeatFrequency === 'WEEKLY' && repeatDays.length === 0 && date) {
+      setRepeatDays([weekdayCode(date)])
+    }
+  }, [isRecurring, repeatFrequency, repeatDays.length, date])
+
+  function toggleRepeatDay(day: string) {
+    setRepeatDays([day])
+  }
 
   if (!open) return null
 
@@ -62,9 +127,15 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       title,
       date: dateToIsoLocal(date),
       priority,
-      tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : []
+      timezone: browserTimezone()
     }
-    if (durationMinutes) payload.duration_minutes = durationMinutes
+    if (isRecurring) {
+      payload.is_recurring = true
+      payload.recurrence_rule = buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays)
+    } else {
+      payload.is_recurring = false
+      payload.recurrence_rule = null
+    }
     try {
       let res
       if (task && task.id) {
@@ -121,12 +192,50 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
               <option value="IMPORTANT">IMPORTANT</option>
               <option value="CRITICAL">CRITICAL</option>
             </select>
-            <input className="login-input" placeholder="Tags (comma)" value={tagNames} onChange={e=>setTagNames(e.target.value)} />
-            <input className="login-input" type="text" inputMode="numeric" placeholder="Duration (min)" value={durationMinutes ?? ''} onChange={(e)=>{const v=e.target.value.replace(/\D/g,''); setDurationMinutes(v ? parseInt(v,10) : null)}} />
           </div>
-          <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
-            {/* simplified: removed recurring / RRULE UI to keep task creation simple */}
-          </div>
+          {!task && (
+            <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
+              <label style={{display:'flex', alignItems:'center', gap:8, color:'inherit'}}>
+                <input type="checkbox" checked={isRecurring} onChange={e=>setIsRecurring(e.target.checked)} />
+                Repeating
+              </label>
+              {isRecurring && (
+                <>
+                  <select className="priority-select" value={repeatFrequency} onChange={e => {
+                    const f = e.target.value as RepeatFrequency
+                    setRepeatFrequency(f)
+                    if (f === 'WEEKLY') setRepeatCount(4)
+                  }}>
+                    <option value="DAILY">Daily</option>
+                    <option value="WEEKLY">Weekly</option>
+                  </select>
+                  {repeatFrequency === 'WEEKLY' && (
+                    <div style={{display:'flex', gap:6, flexWrap:'wrap', alignItems:'center'}}>
+                      {WEEKDAY_CODES.map(day => (
+                        <button key={day} type="button" className={`btn ${repeatDays.includes(day) ? 'active' : ''}`} onClick={() => toggleRepeatDay(day)} style={{padding:'6px 10px', minWidth:40}}>
+                          {day}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    className="login-input"
+                    type="number"
+                    min={1}
+                    placeholder="Occurrences"
+                    value={repeatCount > 0 ? repeatCount : ''}
+                    onChange={e => {
+                      if (e.target.value === '') { setRepeatCount(0); return }
+                      const n = parseInt(e.target.value, 10)
+                      if (!isNaN(n)) setRepeatCount(n)
+                    }}
+                    style={{width:140}}
+                  />
+                </>
+              )}
+            </div>
+          )}
+          {!task && isRecurring && <div style={{color:'#94a3b8', fontSize:12, marginBottom:8}}>This task will repeat automatically based on the selected schedule.</div>}
           <div style={{display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap'}}>
             <button type="button" className="btn" onClick={onClose}>Cancel</button>
             {task && task.id ? (

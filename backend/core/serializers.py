@@ -68,6 +68,11 @@ class TaskSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Invalid status')
         return value
 
+    def validate_recurrence_rule(self, value):
+        if value and 'FREQ=MONTHLY' in value.upper():
+            raise serializers.ValidationError('Monthly recurrence is not supported')
+        return value
+
 
 class RecurrenceExceptionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -81,6 +86,9 @@ class RecurrenceExceptionSerializer(serializers.ModelSerializer):
         if isinstance(value, dict):
             if value.get('status') == 'DONE':
                 value['status'] = 'COMPLETED'
+            rule = value.get('recurrence_rule')
+            if isinstance(rule, str) and 'FREQ=MONTHLY' in rule.upper():
+                raise serializers.ValidationError('Monthly recurrence is not supported')
         return value
 
 

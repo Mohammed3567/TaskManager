@@ -89,10 +89,11 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
                       onClick={e => e.stopPropagation()}
                       onChange={e => {
                         e.stopPropagation()
-                        if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, item.date, Boolean(item.is_recurring), e.target.checked)
+                        const occurrenceKey = item.original_occurrence_date || item.occurrence_date || item.date
+                        if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, occurrenceKey, Boolean(item.is_recurring), e.target.checked)
                       }}
                     />
-                    <div style={{ flex: 1, display:'flex', justifyContent:'space-between', cursor:'pointer' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
+                    <div style={{ flex: 1, display:'flex', justifyContent:'space-between', cursor:'pointer' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date, item)}>
                       <span>{formatTime(item.date)}</span>
                       <span style={{ marginLeft: 8, flex: 1, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>{item.title}</span>
                     </div>
