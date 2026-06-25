@@ -51,6 +51,19 @@ function buildRecurrenceRule(freq: string, count: number, days: string[]) {
   return parts.join(';')
 }
 
+function snapToWeekday(d: Date, dayCode: string) {
+  const targetIdx = WEEKDAY_CODES.indexOf(dayCode)
+  if (targetIdx < 0) return new Date(d)
+  const result = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  const diff = (result.getDay() - targetIdx + 7) % 7
+  result.setDate(result.getDate() - diff)
+  return result
+}
+
+function primaryWeekday(days: string[]) {
+  return [...days].sort((a, b) => WEEKDAY_CODES.indexOf(a) - WEEKDAY_CODES.indexOf(b))[0]
+}
+
 function browserTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
@@ -129,7 +142,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
 
     try {
       const res = await updateTask(task.id, payload)
-      onSaved && onSaved(res)
+      await onSaved?.(res)
       onClose()
     } catch (err) {
       setNotice({ type: 'error', text: 'Save failed' })
@@ -142,13 +155,34 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
     }
 
+    if (repeatFrequency === 'DAILY') {
+      return {
+        title,
+        date: task?.series_date || dateToIsoLocal(date),
+        priority,
+        timezone: browserTimezone(),
+        is_recurring: true,
+        recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays),
+      }
+    }
+
+    const seriesDate = task?.series_date ? isoToDate(task.series_date) : null
+    const reference = seriesDate || date
+    let anchor = reference
+    if (repeatFrequency === 'WEEKLY' && repeatDays.length && reference) {
+      anchor = snapToWeekday(reference, primaryWeekday(repeatDays))
+      if (seriesDate) {
+        anchor.setHours(seriesDate.getHours(), seriesDate.getMinutes(), seriesDate.getSeconds(), 0)
+      }
+    }
+
     const payload: any = {
       title,
-      date: task?.series_date || dateToIsoLocal(date),
+      date: anchor ? anchor.toISOString() : (task?.series_date || dateToIsoLocal(date)),
       priority,
       timezone: browserTimezone(),
       is_recurring: true,
-      recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays)
+      recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays),
     }
     return payload
   }
@@ -158,8 +192,13 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
   }
 
+  function occurrenceKey() {
+    return occurrence?.original_occurrence_date || occurrence?.occurrence_date || occurrenceDate
+  }
+
   async function saveInstance() {
-    if (!task || !task.id || !occurrenceDate) {
+    const key = occurrenceKey()
+    if (!task || !task.id || !key) {
       setNotice({ type: 'error', text: 'This occurrence is missing task information.' })
       return
     }
@@ -176,8 +215,8 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
           recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays),
         }
       }
-      const res = await updateTaskInstance(task.id, occurrenceDate, payload)
-      onSaved && onSaved(res)
+      const res = await updateTaskInstance(task.id, key, payload)
+      await onSaved?.(res)
       onClose()
     } catch (err) {
       setNotice({ type: 'error', text: 'Save occurrence failed' })
@@ -187,15 +226,16 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   }
 
   async function deleteInstance() {
-    if (!task || !task.id || !occurrenceDate) {
+    const key = occurrenceKey()
+    if (!task || !task.id || !key) {
       setNotice({ type: 'error', text: 'This occurrence is missing task information.' })
       return
     }
     setInstanceSaving(true)
     setNotice(null)
     try {
-      await deleteTaskOccurrence(task.id, occurrenceDate)
-      onSaved && onSaved(null)
+      await deleteTaskOccurrence(task.id, key)
+      await onSaved?.(null)
       onClose()
     } catch (err) {
       setNotice({ type: 'error', text: 'Delete occurrence failed' })
@@ -217,7 +257,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     if (!task || !task.id) { setConfirmOpen(false); return }
     try {
       await deleteTask(task.id)
-      onSaved && onSaved(null)
+      await onSaved?.(null)
       onClose()
     } catch (err) {
       console.error(err)

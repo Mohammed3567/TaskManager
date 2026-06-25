@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.utils.dateparse import parse_datetime
 from .models import Task, Tag, RecurrenceException
 from .serializers import TaskSerializer, TagSerializer
-from .utils import expand_recurring_tasks
+from .utils import expand_recurring_tasks, normalize_occurrence_dt
 from rest_framework.views import APIView
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
@@ -91,13 +91,24 @@ class TaskViewSet(viewsets.ModelViewSet):
         occ_dt = parse_datetime(occurrence)
         if occ_dt is None:
             raise ValidationError('invalid occurrence datetime')
-        return occ_dt
+        return normalize_occurrence_dt(occ_dt)
+
+    def _find_exception(self, task, occ_dt):
+        occ_n = normalize_occurrence_dt(occ_dt)
+        for exc in task.exceptions.all():
+            if normalize_occurrence_dt(exc.occurrence_date) == occ_n:
+                return exc
+        return None
 
     def _save_instance_exception(self, task, request, delete_only=False):
         if not task.is_recurring:
             raise ValidationError('cannot manage instance exceptions for non-recurring tasks')
         occ_dt = self._parse_occurrence(request)
-        exception, _ = RecurrenceException.objects.get_or_create(task=task, occurrence_date=occ_dt)
+        exception = self._find_exception(task, occ_dt)
+        if exception is None:
+            exception = RecurrenceException.objects.create(task=task, occurrence_date=occ_dt)
+        elif exception.occurrence_date != occ_dt:
+            exception.occurrence_date = occ_dt
         if delete_only:
             exception.is_deleted = True
             exception.override_data = None

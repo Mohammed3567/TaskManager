@@ -224,9 +224,10 @@ export default function App() {
     }
   }
 
-  function handleSaved(res: any) {
-    // refresh occurrences for current view range
-    loadOccurrences(viewDate, view)
+  async function handleSaved(res: any) {
+    if (view !== 'analytics') {
+      await loadOccurrences(viewDate, view)
+    }
     setAnalyticsRefreshKey(key => key + 1)
   }
 
