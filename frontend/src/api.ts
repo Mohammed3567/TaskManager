@@ -191,11 +191,6 @@ function sameOccurrenceDate(a?: string | null, b?: string | null) {
   return a === b
 }
 
-function tagNamesToTags(tagNames: any) {
-  if (!Array.isArray(tagNames)) return undefined
-  return tagNames.map((name: any) => ({ name: String(name) }))
-}
-
 export async function getTaskOccurrence(id: string, occurrence: string, occurrenceSnapshot?: any) {
   const [task, exceptions] = await Promise.all([
     getTask(id),
@@ -219,14 +214,13 @@ export async function getTaskOccurrence(id: string, occurrence: string, occurren
     id: task.id,
     task_id: task.id,
     is_recurring: task.is_recurring,
+    series_date: task.date,
+    series_recurrence_rule: task.recurrence_rule,
     date: (override && Object.prototype.hasOwnProperty.call(override, 'date'))
       ? override.date
       : (snapshot.date || occurrence),
     occurrence_date: occurrenceKey,
     original_occurrence_date: occurrenceKey,
-  }
-  if (override && Object.prototype.hasOwnProperty.call(override, 'tag_names')) {
-    merged.tags = tagNamesToTags(override.tag_names) || []
   }
   return merged
 }

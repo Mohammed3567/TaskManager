@@ -22,6 +22,7 @@ function isoToDate(iso?: string | null) {
 }
 
 const WEEKDAY_CODES = ['SU','MO','TU','WE','TH','FR','SA']
+type RepeatFrequency = 'DAILY'|'WEEKLY'
 
 function weekdayCode(d: Date) {
   return WEEKDAY_CODES[d.getDay()]
@@ -50,16 +51,18 @@ function buildRecurrenceRule(freq: string, count: number, days: string[]) {
   return parts.join(';')
 }
 
+function browserTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
 // helper to convert ISO -> YYYY-MM-DD for date inputs
 
-export default function TaskModal({ open, onClose, onSaved, initialDate, task, occurrenceDate, initialDurationMinutes }: any) {
+export default function TaskModal({ open, onClose, onSaved, initialDate, task }: any) {
   const [title, setTitle] = useState(task?.title || '')
   const [date, setDate] = useState<Date | null>(task?.date ? isoToDate(task.date) : (initialDate ? isoToDate(initialDate) : null))
   const [priority, setPriority] = useState(task?.priority || 'ROUTINE')
-  const [tagNames, setTagNames] = useState((task && task.tags) ? task.tags.map((t: any)=>t.name).join(',') : '')
-  const [durationMinutes, setDurationMinutes] = useState<number | null>(task?.duration_minutes ?? (initialDurationMinutes ?? null))
   const [isRecurring, setIsRecurring] = useState(task?.is_recurring ?? false)
-  const [repeatFrequency, setRepeatFrequency] = useState<'DAILY'|'WEEKLY'|'MONTHLY'>('DAILY')
+  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('DAILY')
   const [repeatDays, setRepeatDays] = useState<string[]>([])
   const [repeatCount, setRepeatCount] = useState<number>(5)
   const [saving, setSaving] = useState(false)
@@ -71,11 +74,10 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       setTitle(task.title || '')
       setDate(taskDate)
       setPriority(task.priority || 'ROUTINE')
-      setDurationMinutes(task.duration_minutes ?? initialDurationMinutes ?? null)
       setIsRecurring(!!task.is_recurring)
       const parsedRule = parseRecurrenceRule(task.recurrence_rule)
       if (parsedRule && parsedRule.freq) {
-        setRepeatFrequency(parsedRule.freq as 'DAILY'|'WEEKLY'|'MONTHLY')
+        setRepeatFrequency(parsedRule.freq === 'WEEKLY' ? 'WEEKLY' : 'DAILY')
         setRepeatCount(parsedRule.count ?? 5)
         if (parsedRule.freq === 'WEEKLY') {
           setRepeatDays(parsedRule.byDay.length ? parsedRule.byDay : taskDate ? [weekdayCode(taskDate)] : ['MO'])
@@ -88,19 +90,18 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
         setRepeatDays(taskDate ? [weekdayCode(taskDate)] : ['MO'])
       }
     }
-  }, [task, initialDate, initialDurationMinutes])
+  }, [task, initialDate])
 
   useEffect(() => {
     if (!task) {
       const initial = isoToDate(initialDate) ?? new Date()
       setDate(initial)
-      setDurationMinutes(initialDurationMinutes)
       setIsRecurring(false)
       setRepeatFrequency('DAILY')
       setRepeatDays([weekdayCode(initial)])
       setRepeatCount(5)
     }
-  }, [initialDate, initialDurationMinutes, task])
+  }, [initialDate, task])
 
   useEffect(() => {
     if (isRecurring && repeatFrequency === 'WEEKLY' && repeatDays.length === 0 && date) {
@@ -126,9 +127,8 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
       title,
       date: dateToIsoLocal(date),
       priority,
-      tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : []
+      timezone: browserTimezone()
     }
-    if (durationMinutes) payload.duration_minutes = durationMinutes
     if (isRecurring) {
       payload.is_recurring = true
       payload.recurrence_rule = buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays)
@@ -193,8 +193,6 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
               <option value="IMPORTANT">IMPORTANT</option>
               <option value="CRITICAL">CRITICAL</option>
             </select>
-            <input className="login-input" placeholder="Tags (comma)" value={tagNames} onChange={e=>setTagNames(e.target.value)} />
-            <input className="login-input" type="text" inputMode="numeric" placeholder="Duration (min)" value={durationMinutes ?? ''} onChange={(e)=>{const v=e.target.value.replace(/\D/g,''); setDurationMinutes(v ? parseInt(v,10) : null)}} />
           </div>
           {!task && (
             <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
@@ -204,10 +202,9 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, o
               </label>
               {isRecurring && (
                 <>
-                  <select className="priority-select" value={repeatFrequency} onChange={e=>setRepeatFrequency(e.target.value as 'DAILY'|'WEEKLY'|'MONTHLY')}>
+                  <select className="priority-select" value={repeatFrequency} onChange={e=>setRepeatFrequency(e.target.value as RepeatFrequency)}>
                     <option value="DAILY">Daily</option>
                     <option value="WEEKLY">Weekly</option>
-                    <option value="MONTHLY">Monthly</option>
                   </select>
                   {repeatFrequency === 'WEEKLY' && (
                     <div style={{display:'flex', gap:6, flexWrap:'wrap', alignItems:'center'}}>

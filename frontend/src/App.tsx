@@ -65,9 +65,8 @@ export default function App() {
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
   const [editingOccurrence, setEditingOccurrence] = useState<any | null>(null)
-  const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
-  const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
   const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0)
+  const [appNotice, setAppNotice] = useState<string | null>(null)
   const monthDate = viewDate
   function toYMDLocal(d: Date) {
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -191,7 +190,8 @@ export default function App() {
       setModalDate(occurrenceKey)
       setModalOpen(true)
     } catch (err) {
-      alert('Failed to load task')
+      console.error(err)
+      setAppNotice('Failed to load task')
     }
   }
 
@@ -217,37 +217,21 @@ export default function App() {
         await updateTask(taskId, { status: done ? 'COMPLETED' : 'PENDING' })
       }
       loadOccurrences(viewDate, view)
+      setAnalyticsRefreshKey(key => key + 1)
     } catch (err: any) {
       console.error(err)
-      alert(err?.message || 'Failed to update task status')
+      setAppNotice(err?.message || 'Failed to update task status')
     }
-  }
-
-  function openRangeSelect(startIso: string, endIso: string) {
-    const s = new Date(startIso)
-    const e = new Date(endIso)
-    // make selection inclusive of end slot by adding 1 hour
-    const endInclusive = new Date(e.getTime() + 60*60*1000)
-    const durationMs = Math.abs(endInclusive.getTime() - s.getTime())
-    const durationMin = Math.max(15, Math.round(durationMs / 60000))
-    setModalDate(s.toISOString())
-    setModalInitialDuration(durationMin)
-    setEditingTask(null)
-    setEditingOccurrence(null)
-    setModalOpen(true)
-    setSelectionRange({ start: s.toISOString(), end: endInclusive.toISOString() })
   }
 
   function handleSaved(res: any) {
     // refresh occurrences for current view range
     loadOccurrences(viewDate, view)
     setAnalyticsRefreshKey(key => key + 1)
-    setSelectionRange(null)
   }
 
   function handleCloseModal() {
     setModalOpen(false)
-    setSelectionRange(null)
     setEditingOccurrence(null)
   }
 
@@ -320,6 +304,12 @@ export default function App() {
       </div>
 
       <div style={{marginTop:18}}>
+        {appNotice && (
+          <div className="card" role="status" style={{padding:12, marginBottom:12, color:'#fecaca', display:'flex', justifyContent:'space-between', gap:12}}>
+            <span>{appNotice}</span>
+            <button className="btn" type="button" onClick={() => setAppNotice(null)}>Dismiss</button>
+          </div>
+        )}
   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:'12px'}}>
     
     <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
@@ -392,7 +382,6 @@ export default function App() {
             task={editingTask}
             occurrence={editingOccurrence}
             occurrenceDate={modalDate}
-            initialDurationMinutes={modalInitialDuration}
             onClose={handleCloseModal}
             onSaved={handleSaved}
           />
@@ -401,7 +390,6 @@ export default function App() {
             open={modalOpen}
             initialDate={modalDate}
             task={editingTask}
-            initialDurationMinutes={modalInitialDuration}
             onClose={handleCloseModal}
             onSaved={handleSaved}
           />

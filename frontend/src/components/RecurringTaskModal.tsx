@@ -22,6 +22,7 @@ function isoToDate(iso?: string | null) {
 }
 
 const WEEKDAY_CODES = ['SU','MO','TU','WE','TH','FR','SA']
+type RepeatFrequency = 'DAILY'|'WEEKLY'
 
 function weekdayCode(d: Date) {
   return WEEKDAY_CODES[d.getDay()]
@@ -50,23 +51,26 @@ function buildRecurrenceRule(freq: string, count: number, days: string[]) {
   return parts.join(';')
 }
 
-export default function RecurringTaskModal({ open, onClose, onSaved, task, occurrence, occurrenceDate, initialDurationMinutes }: any) {
+function browserTimezone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
+
+export default function RecurringTaskModal({ open, onClose, onSaved, task, occurrence, occurrenceDate }: any) {
   const [title, setTitle] = useState(task?.title || '')
   const [date, setDate] = useState<Date | null>(task?.date ? isoToDate(task.date) : null)
   const [priority, setPriority] = useState(task?.priority || 'ROUTINE')
-  const [tagNames, setTagNames] = useState((task && task.tags) ? task.tags.map((t: any)=>t.name).join(',') : '')
-  const [durationMinutes, setDurationMinutes] = useState<number | null>(task?.duration_minutes ?? (initialDurationMinutes ?? null))
-  const [repeatFrequency, setRepeatFrequency] = useState<'DAILY'|'WEEKLY'|'MONTHLY'>('DAILY')
+  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('DAILY')
   const [repeatDays, setRepeatDays] = useState<string[]>([])
   const [repeatCount, setRepeatCount] = useState<number>(5)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [instanceSaving, setInstanceSaving] = useState(false)
   const [instanceDeletePrompt, setInstanceDeletePrompt] = useState(false)
+  const [notice, setNotice] = useState<{type:'error'|'success', text:string} | null>(null)
 
   useEffect(() => {
     if (task) applyEditableData(occurrence || task)
-  }, [task, occurrence, initialDurationMinutes])
+  }, [task, occurrence])
 
   useEffect(() => {
     let cancelled = false
@@ -81,23 +85,10 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     }
     loadOccurrence()
     return () => { cancelled = true }
-  }, [task, occurrence, occurrenceDate, initialDurationMinutes])
+  }, [task, occurrence, occurrenceDate])
 
   function hasField(source: any, key: string) {
     return source && Object.prototype.hasOwnProperty.call(source, key)
-  }
-
-  function tagsToInput(source: any) {
-    if (hasField(source, 'tag_names')) {
-      const value = source.tag_names
-      if (Array.isArray(value)) return value.join(',')
-      if (value === null || value === undefined) return ''
-      return String(value)
-    }
-    if (Array.isArray(source?.tags)) {
-      return source.tags.map((t: any) => typeof t === 'string' ? t : t?.name).filter(Boolean).join(',')
-    }
-    return ''
   }
 
   function applyEditableData(source: any) {
@@ -107,12 +98,10 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     setTitle(hasField(source, 'title') ? String(source.title ?? '') : '')
     setDate(taskDate)
     setPriority(source.priority || 'ROUTINE')
-    setTagNames(tagsToInput(source))
-    setDurationMinutes(hasField(source, 'duration_minutes') ? source.duration_minutes : (initialDurationMinutes ?? null))
 
-    const parsedRule = parseRecurrenceRule(source.recurrence_rule || task?.recurrence_rule)
+    const parsedRule = parseRecurrenceRule(source.series_recurrence_rule || task?.series_recurrence_rule || source.recurrence_rule || task?.recurrence_rule)
     if (parsedRule && parsedRule.freq) {
-      setRepeatFrequency(parsedRule.freq as 'DAILY'|'WEEKLY'|'MONTHLY')
+      setRepeatFrequency(parsedRule.freq === 'WEEKLY' ? 'WEEKLY' : 'DAILY')
       setRepeatCount(parsedRule.count ?? 5)
       if (parsedRule.freq === 'WEEKLY') {
         setRepeatDays(parsedRule.byDay.length ? parsedRule.byDay : taskDate ? [weekdayCode(taskDate)] : ['MO'])
@@ -135,6 +124,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   async function save(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    setNotice(null)
     const payload: any = buildSavePayload()
 
     try {
@@ -142,7 +132,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       onSaved && onSaved(res)
       onClose()
     } catch (err) {
-      alert('Save failed')
+      setNotice({ type: 'error', text: 'Save failed' })
     } finally { setSaving(false) }
   }
 
@@ -154,10 +144,9 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
 
     const payload: any = {
       title,
-      date: dateToIsoLocal(date),
+      date: task?.series_date || dateToIsoLocal(date),
       priority,
-      tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : [],
-      duration_minutes: durationMinutes,
+      timezone: browserTimezone(),
       is_recurring: true,
       recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays)
     }
@@ -170,16 +159,18 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   }
 
   async function saveInstance() {
-    if (!task || !task.id || !occurrenceDate) return
+    if (!task || !task.id || !occurrenceDate) {
+      setNotice({ type: 'error', text: 'This occurrence is missing task information.' })
+      return
+    }
     setInstanceSaving(true)
+    setNotice(null)
     try {
       const payload: any = {
         override_data: {
           title,
           date: formatDateForOverride(date),
           priority,
-          tag_names: tagNames ? tagNames.split(',').map((s:string)=>s.trim()) : [],
-          duration_minutes: durationMinutes,
           status: occurrence?.status || task?.status,
           is_recurring: true,
           recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays),
@@ -189,22 +180,25 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       onSaved && onSaved(res)
       onClose()
     } catch (err) {
-      alert('Save instance failed')
+      setNotice({ type: 'error', text: 'Save occurrence failed' })
     } finally {
       setInstanceSaving(false)
     }
   }
 
   async function deleteInstance() {
-    if (!task || !task.id || !occurrenceDate) return
+    if (!task || !task.id || !occurrenceDate) {
+      setNotice({ type: 'error', text: 'This occurrence is missing task information.' })
+      return
+    }
     setInstanceSaving(true)
+    setNotice(null)
     try {
       await deleteTaskOccurrence(task.id, occurrenceDate)
-      alert('Recurring instance deleted')
       onSaved && onSaved(null)
       onClose()
     } catch (err) {
-      alert('Delete instance failed')
+      setNotice({ type: 'error', text: 'Delete occurrence failed' })
     } finally {
       setInstanceSaving(false)
       setInstanceDeletePrompt(false)
@@ -212,7 +206,10 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   }
 
   function openTaskDeleteConfirm() {
-    if (!task || !task.id) return alert('Save task first to delete it')
+    if (!task || !task.id) {
+      setNotice({ type: 'error', text: 'Save task first to delete it.' })
+      return
+    }
     setConfirmOpen(true)
   }
 
@@ -220,12 +217,11 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     if (!task || !task.id) { setConfirmOpen(false); return }
     try {
       await deleteTask(task.id)
-      alert('Task deleted')
       onSaved && onSaved(null)
       onClose()
     } catch (err) {
       console.error(err)
-      alert((err as any)?.message || 'Action failed')
+      setNotice({ type: 'error', text: (err as any)?.message || 'Action failed' })
     } finally {
       setConfirmOpen(false)
     }
@@ -240,6 +236,14 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       <div style={{width:540, background:'#071027', padding:18, borderRadius:12}}>
         <h3 style={{marginTop:0}}>Edit Recurring Task</h3>
         <div style={{marginBottom:12, color:'#94a3b8', fontSize:13}}>This task is recurring. Update the full series or just this occurrence.</div>
+        {notice && (
+          <div
+            role="status"
+            style={{marginBottom:12, color: notice.type === 'error' ? '#fecaca' : '#bbf7d0', fontSize:13}}
+          >
+            {notice.text}
+          </div>
+        )}
         <form onSubmit={save}>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
             <input className="login-input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} />
@@ -259,14 +263,11 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
               <option value="IMPORTANT">IMPORTANT</option>
               <option value="CRITICAL">CRITICAL</option>
             </select>
-            <input className="login-input" placeholder="Tags (comma)" value={tagNames} onChange={e=>setTagNames(e.target.value)} />
-            <input className="login-input" type="text" inputMode="numeric" placeholder="Duration (min)" value={durationMinutes ?? ''} onChange={(e)=>{const v=e.target.value.replace(/\D/g,''); setDurationMinutes(v ? parseInt(v,10) : null)}} />
           </div>
           <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
-            <select className="priority-select" value={repeatFrequency} onChange={e=>setRepeatFrequency(e.target.value as 'DAILY'|'WEEKLY'|'MONTHLY')}>
+            <select className="priority-select" value={repeatFrequency} onChange={e=>setRepeatFrequency(e.target.value as RepeatFrequency)}>
               <option value="DAILY">Daily</option>
               <option value="WEEKLY">Weekly</option>
-              <option value="MONTHLY">Monthly</option>
             </select>
             {repeatFrequency === 'WEEKLY' && (
               <div style={{display:'flex', gap:6, flexWrap:'wrap', alignItems:'center'}}>

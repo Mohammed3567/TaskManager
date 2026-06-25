@@ -46,18 +46,6 @@ export default function Analytics({ refreshKey }: { refreshKey?: number }) {
       </div>
 
       <div style={{marginTop:12}}>
-        <h4 style={{margin:0}}>Tags</h4>
-        <div style={{display:'flex', gap:8, marginTop:8}}>
-          {Object.entries(data.tag_counts || {}).map(([k,v]) => (
-            <div key={k} style={{padding:8, borderRadius:8, background:'rgba(255,255,255,0.02)'}}>
-              <div className="small">{k}</div>
-              <div style={{fontWeight:700}}>{String(v)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div style={{marginTop:12}}>
         <h4 style={{margin:0}}>Current streak</h4>
         <div style={{fontSize:20, fontWeight:700}}>{data.current_streak_days} days</div>
       </div>

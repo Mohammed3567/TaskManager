@@ -3,6 +3,7 @@ from dateutil.parser import parse as parse_dt
 from django.utils import timezone
 import datetime
 import logging
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 logger = logging.getLogger(__name__)
 
 def occurrence_to_dict(task, occ_dt, exception_override=None):
@@ -42,6 +43,12 @@ def expand_recurring_tasks(tasks, exceptions_qs, range_start, range_end):
             dt = timezone.make_aware(dt, datetime.timezone.utc)
         return dt.astimezone(datetime.timezone.utc).replace(microsecond=0)
 
+    def _task_zone(task):
+        try:
+            return ZoneInfo(task.timezone or 'UTC')
+        except ZoneInfoNotFoundError:
+            return ZoneInfo('UTC')
+
     exceptions_map = {}
     for e in exceptions_qs:
         occ = _normalize(e.occurrence_date)
@@ -71,16 +78,22 @@ def expand_recurring_tasks(tasks, exceptions_qs, range_start, range_end):
         # recurring task: expand using rrulestr with dtstart
         if not task.recurrence_rule:
             continue
+        if 'FREQ=MONTHLY' in task.recurrence_rule.upper():
+            continue
         try:
+            task_tz = _task_zone(task)
             dtstart = _normalize(task.date)
             rs = _normalize(range_start)
             re = _normalize(range_end)
             logger.debug('expanding task %s dtstart %s rs %s re %s rule %s', task.id, dtstart, rs, re, task.recurrence_rule)
-            rule = rrulestr(task.recurrence_rule, dtstart=dtstart)
-            occs = rule.between(rs, re, inc=True)
+            local_dtstart = dtstart.astimezone(task_tz)
+            local_rs = rs.astimezone(task_tz)
+            local_re = re.astimezone(task_tz)
+            rule = rrulestr(task.recurrence_rule, dtstart=local_dtstart)
+            occs = rule.between(local_rs, local_re, inc=True)
             logger.debug('task %s generated occs: %s', task.id, [o.isoformat() for o in occs])
             for occ in occs:
-                occ_n = _normalize(occ)
+                occ_n = _normalize(occ.astimezone(datetime.timezone.utc))
                 key = (str(task.id), occ_n.isoformat())
                 exc = exceptions_map.get(key)
                 if exc and exc.is_deleted:
