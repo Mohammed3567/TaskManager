@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { getAnalytics } from '../api'
 
-export default function Analytics() {
+export default function Analytics({ refreshKey }: { refreshKey?: number }) {
   const [data, setData] = useState<any | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -10,7 +10,7 @@ export default function Analytics() {
     const end = new Date().toISOString()
     const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
     getAnalytics(start, end).then(d => setData(d)).catch(err => { console.error(err); setData(null) }).finally(() => setLoading(false))
-  }, [])
+  }, [refreshKey])
 
   if (loading) return <div className="card">Loading analytics...</div>
   if (!data) return <div className="card">No analytics available</div>

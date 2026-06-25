@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from ..models import Task, RecurrenceException, Tag
+from core.models import Task, RecurrenceException, Tag
 from django.utils import timezone
 from datetime import datetime, timedelta
 
@@ -21,7 +21,7 @@ class RecurrenceExpansionTests(TestCase):
             recurrence_rule='FREQ=WEEKLY;COUNT=3'
         )
 
-        from ..utils import expand_recurring_tasks
+        from core.utils import expand_recurring_tasks
 
         end = start + timedelta(days=21)
         occurrences = expand_recurring_tasks([task], RecurrenceException.objects.none(), start, end)
@@ -41,7 +41,7 @@ class RecurrenceExpansionTests(TestCase):
         second_occ = start + timedelta(weeks=1)
         RecurrenceException.objects.create(task=task, occurrence_date=second_occ, is_deleted=True)
 
-        from ..utils import expand_recurring_tasks
+        from core.utils import expand_recurring_tasks
 
         end = start + timedelta(days=21)
         occurrences = expand_recurring_tasks([task], RecurrenceException.objects.filter(task=task), start, end)

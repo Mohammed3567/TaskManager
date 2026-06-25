@@ -54,12 +54,6 @@ html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -ap
 .date-header { transition: transform 260ms cubic-bezier(.2,.9,.2,1), color 260ms, font-weight 260ms; transform-origin:center; display:inline-block }
 .date-header.animate { transform: scale(1.08); font-weight:800; color:#ffffff; text-shadow: 0 6px 18px rgba(124,58,237,0.12) }
 
-/* Templates select styling */
-.templates-select-wrapper { position:relative; display:inline-block }
-.templates-select { appearance:none; -webkit-appearance:none; -moz-appearance:none; padding:8px 32px 8px 12px; border-radius:8px; background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; min-width:180px; cursor:pointer }
-.templates-select:focus { outline: none; box-shadow: 0 6px 18px rgba(124,58,237,0.08) }
-.templates-chevron { position:absolute; right:8px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--muted); font-size:12px }
-
 /* Priority select styling */
 .priority-select { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:var(--glass); color:inherit; min-width:140px }
 .priority-select:focus { outline:none; box-shadow: 0 6px 18px rgba(124,58,237,0.08) }
@@ -73,9 +67,6 @@ html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -ap
 /* Timer inputs styling */
 .timer-number-input { background:transparent; border:1px solid rgba(255,255,255,0.04); color:inherit; padding:8px; border-radius:8px }
 .timer-number-input:focus { outline:none; box-shadow: 0 6px 18px rgba(124,58,237,0.06) }
-
-/* Templates select dropdown option styling - remove white default appearance */
-.templates-select option { background: #071027; color: #e6eef8 }
 
 /* Priority select dropdown styling to match theme */
 .priority-select option { background: #071027; color: #e6eef8 }

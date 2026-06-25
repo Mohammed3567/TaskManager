@@ -10,6 +10,8 @@ def occurrence_to_dict(task, occ_dt, exception_override=None):
         'task_id': str(task.id),
         'title': task.title,
         'date': occ_dt.isoformat(),
+        'occurrence_date': occ_dt.isoformat(),
+        'original_occurrence_date': occ_dt.isoformat(),
         'priority': task.priority,
         'status': task.status,
         'is_recurring': task.is_recurring,

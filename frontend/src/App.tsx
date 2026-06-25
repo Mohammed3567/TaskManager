@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance, createTask, quickAdd } from './api'
+import { getOccurrences, login, getTaskOccurrence, register, getMe, logout, updateTask, updateTaskInstance } from './api'
 import ErrorBoundary from './components/ErrorBoundary'
 import { logClientError } from './components/clientLogging'
 import MonthView from './components/MonthView'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import TaskModal from './components/TaskModal'
+import RecurringTaskModal from './components/RecurringTaskModal'
 import Analytics from './components/Analytics'
 import FocusTimer from './components/FocusTimer'
-import TemplatesSelect from './components/TemplatesSelect'
 
 function monthStartISO(d: Date) {
   const s = new Date(d.getFullYear(), d.getMonth(), 1)
@@ -60,13 +60,14 @@ export default function App() {
   const [view, setView] = useState<'month'|'week'|'day'|'analytics'>('month')
   const [headerAnimate, setHeaderAnimate] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
-  const [quickText, setQuickText] = useState('')
   const [showTimer, setShowTimer] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
+  const [editingOccurrence, setEditingOccurrence] = useState<any | null>(null)
   const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
   const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
+  const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0)
   const monthDate = viewDate
   function toYMDLocal(d: Date) {
     const pad = (n: number) => String(n).padStart(2, '0')
@@ -174,19 +175,20 @@ export default function App() {
     setModalDate(dateISO)
     // do not open modal in "occurrence edit" mode — simplified UI
     setEditingTask(null)
+    setEditingOccurrence(null)
     setModalOpen(true)
   }
 
-  async function openEditFor(taskId: string, occurrenceISO: string) {
+  async function openEditFor(taskId: string, occurrenceISO: string, occurrence?: any) {
     try {
-      const t = await getTask(taskId)
+      const occurrenceKey = occurrence?.original_occurrence_date || occurrence?.occurrence_date || occurrenceISO
+      const t = await getTaskOccurrence(taskId, occurrenceKey, occurrence)
       setEditingTask(t)
+      setEditingOccurrence(t)
       // ensure the view date matches the occurrence being edited
       const parsed = parseIsoOrYmd(occurrenceISO)
       setViewDate(parsed)
-      setModalDate(occurrenceISO)
-      // always open task edit (not occurrence edit)
-      // occurrence overrides are hidden from the UI
+      setModalDate(occurrenceKey)
       setModalOpen(true)
     } catch (err) {
       alert('Failed to load task')
@@ -231,6 +233,7 @@ export default function App() {
     setModalDate(s.toISOString())
     setModalInitialDuration(durationMin)
     setEditingTask(null)
+    setEditingOccurrence(null)
     setModalOpen(true)
     setSelectionRange({ start: s.toISOString(), end: endInclusive.toISOString() })
   }
@@ -238,12 +241,14 @@ export default function App() {
   function handleSaved(res: any) {
     // refresh occurrences for current view range
     loadOccurrences(viewDate, view)
+    setAnalyticsRefreshKey(key => key + 1)
     setSelectionRange(null)
   }
 
   function handleCloseModal() {
     setModalOpen(false)
     setSelectionRange(null)
+    setEditingOccurrence(null)
   }
 
   function AuthPage({ onAuth }: any) {
@@ -334,16 +339,6 @@ export default function App() {
 
   <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'16px', marginBottom:'12px'}}>
 
-    <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-      <input className="login-input" placeholder="'Meeting tomorrow at 9am'" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:250}} />
-
-      <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>
-        Quick Add
-      </button>
-
-      <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
-    </div>
-
     <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8}}>
       <button className="btn create-task-btn" onClick={()=>openCreateFor(viewDate.toISOString())}>
         + Create Task
@@ -387,11 +382,30 @@ export default function App() {
           />
         )}
         {view === 'analytics' && (
-          <Analytics />
+          <Analytics refreshKey={analyticsRefreshKey} />
         )}
 
         {!occ && <div className="card" style={{padding:18}}>Sign in and click Prev/Next to load occurrences for a month.</div>}
-        {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} initialDurationMinutes={modalInitialDuration} onClose={handleCloseModal} onSaved={handleSaved} />}
+        {modalOpen && (editingTask?.is_recurring ? (
+          <RecurringTaskModal
+            open={modalOpen}
+            task={editingTask}
+            occurrence={editingOccurrence}
+            occurrenceDate={modalDate}
+            initialDurationMinutes={modalInitialDuration}
+            onClose={handleCloseModal}
+            onSaved={handleSaved}
+          />
+        ) : (
+          <TaskModal
+            open={modalOpen}
+            initialDate={modalDate}
+            task={editingTask}
+            initialDurationMinutes={modalInitialDuration}
+            onClose={handleCloseModal}
+            onSaved={handleSaved}
+          />
+        ))}
       </div>
       </>
       </ErrorBoundary>

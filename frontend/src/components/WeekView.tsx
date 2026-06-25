@@ -1,6 +1,6 @@
 import React from 'react'
 
-type Occurrence = { task_id: string; title: string; date: string; priority: string; status?: string; is_recurring?: boolean }
+type Occurrence = { task_id: string; title: string; date: string; occurrence_date?: string; original_occurrence_date?: string; priority: string; status?: string; is_recurring?: boolean }
 
 function getWeekStart(d: Date) {
   const result = new Date(d)
@@ -61,14 +61,15 @@ export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurre
               ) : (
                 dayItems.map((item: any) => (
                   <div key={item.task_id + item.date} style={{ marginBottom: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor:'pointer', padding:'6px 8px', borderRadius:8, background: 'rgba(255,255,255,0.02)' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor:'pointer', padding:'6px 8px', borderRadius:8, background: 'rgba(255,255,255,0.02)' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date, item)}>
                       <input
                         type="checkbox"
                         checked={item.status === 'COMPLETED'}
                         onClick={e => e.stopPropagation()}
                         onChange={e => {
                           e.stopPropagation()
-                          if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, item.date, Boolean(item.is_recurring), e.target.checked)
+                          const occurrenceKey = item.original_occurrence_date || item.occurrence_date || item.date
+                          if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, occurrenceKey, Boolean(item.is_recurring), e.target.checked)
                         }}
                       />
                       <div style={{ flex: 1, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>

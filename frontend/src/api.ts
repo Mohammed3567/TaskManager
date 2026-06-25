@@ -166,10 +166,69 @@ export async function createException(payload: any) {
   return resp.json()
 }
 
+export async function getTaskExceptions(id: string) {
+  const resp = await fetch(`${API_BASE}/api/tasks/${id}/exceptions/`, { credentials: 'include' })
+  if (!resp.ok) throw new Error('Fetching task exceptions failed')
+  return resp.json()
+}
+
 export async function getTask(id: string) {
   const resp = await fetch(`${API_BASE}/api/tasks/${id}/`, { credentials: 'include' })
   if (!resp.ok) throw new Error('Get task failed')
   return resp.json()
+}
+
+function parseOccurrenceDate(value?: string | null) {
+  if (!value) return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function sameOccurrenceDate(a?: string | null, b?: string | null) {
+  const da = parseOccurrenceDate(a)
+  const db = parseOccurrenceDate(b)
+  if (da && db) return da.getTime() === db.getTime()
+  return a === b
+}
+
+function tagNamesToTags(tagNames: any) {
+  if (!Array.isArray(tagNames)) return undefined
+  return tagNames.map((name: any) => ({ name: String(name) }))
+}
+
+export async function getTaskOccurrence(id: string, occurrence: string, occurrenceSnapshot?: any) {
+  const [task, exceptions] = await Promise.all([
+    getTask(id),
+    getTaskExceptions(id).catch(() => []),
+  ])
+  const occurrenceKey =
+    occurrenceSnapshot?.original_occurrence_date ||
+    occurrenceSnapshot?.occurrence_date ||
+    occurrence
+  const matchingException = Array.isArray(exceptions)
+    ? exceptions.find((exc: any) => sameOccurrenceDate(exc.occurrence_date, occurrenceKey))
+    : null
+  const override = matchingException?.override_data && typeof matchingException.override_data === 'object'
+    ? matchingException.override_data
+    : null
+  const snapshot = occurrenceSnapshot && typeof occurrenceSnapshot === 'object' ? occurrenceSnapshot : {}
+  const merged: any = {
+    ...task,
+    ...snapshot,
+    ...(override || {}),
+    id: task.id,
+    task_id: task.id,
+    is_recurring: task.is_recurring,
+    date: (override && Object.prototype.hasOwnProperty.call(override, 'date'))
+      ? override.date
+      : (snapshot.date || occurrence),
+    occurrence_date: occurrenceKey,
+    original_occurrence_date: occurrenceKey,
+  }
+  if (override && Object.prototype.hasOwnProperty.call(override, 'tag_names')) {
+    merged.tags = tagNamesToTags(override.tag_names) || []
+  }
+  return merged
 }
 
 export async function getAnalytics(start?: string, end?: string) {
@@ -182,17 +241,3 @@ export async function getAnalytics(start?: string, end?: string) {
   return resp.json()
 }
 
-export async function quickAdd(text: string) {
-  const csrfToken = await ensureCsrfToken()
-  const resp = await fetch(`${API_BASE}/api/core/quick_add/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-    body: JSON.stringify({ text }),
-    credentials: 'include'
-  })
-  if (!resp.ok) {
-    const txt = await resp.text().catch(()=>null)
-    throw new Error(txt || 'Quick add failed')
-  }
-  return resp.json()
-}
