@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000' // backend dev server
+const API_BASE = 'http://13.203.248.62:8000'
 
 // Maps raw API error text to clean, human-readable messages.
 function formatLoginError(txt: string): string {
