@@ -339,15 +339,18 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
         <form onSubmit={save}>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
             <input className="login-input" placeholder="Title" value={title} onChange={e=>setTitle(e.target.value)} />
-            <DatePicker
-              selected={date}
-              onChange={(d: Date | null) => setDate(d)}
-              dateFormat="dd-MM-yyyy"
-              className="login-input"
-              wrapperClassName="date-picker-wrapper"
-              calendarClassName="react-datepicker-dark"
-              dayClassName={(d:Date) => isSameDate(d, date) ? 'app-day-custom-selected' : ''}
-            />
+            {/* Date is locked when editing an existing series — same opacity pattern as the frequency selector */}
+            <div style={frequencyLocked ? { opacity: 0.3, pointerEvents: 'none' } : undefined}>
+              <DatePicker
+                selected={date}
+                onChange={(d: Date | null) => setDate(d)}
+                dateFormat="dd-MM-yyyy"
+                className="login-input"
+                wrapperClassName="date-picker-wrapper"
+                calendarClassName="react-datepicker-dark"
+                dayClassName={(d:Date) => isSameDate(d, date) ? 'app-day-custom-selected' : ''}
+              />
+            </div>
           </div>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
             <select className="priority-select" value={priority} onChange={e=>setPriority(e.target.value)}>
