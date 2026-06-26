@@ -349,6 +349,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
                 wrapperClassName="date-picker-wrapper"
                 calendarClassName="react-datepicker-dark"
                 dayClassName={(d:Date) => isSameDate(d, date) ? 'app-day-custom-selected' : ''}
+                calendarStartDay={1}
               />
             </div>
           </div>

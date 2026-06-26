@@ -185,6 +185,7 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task, i
               wrapperClassName="date-picker-wrapper"
               calendarClassName="react-datepicker-dark"
               dayClassName={(d:Date) => isSameDate(d, date) ? 'app-day-custom-selected' : ''}
+              calendarStartDay={1}
             />
           </div>
           <div style={{display:'flex', gap:8, marginBottom:8}}>
