@@ -102,6 +102,11 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   const [instanceSaving, setInstanceSaving] = useState(false)
   const [instanceDeletePrompt, setInstanceDeletePrompt] = useState(false)
   const [notice, setNotice] = useState<{type:'error'|'success', text:string} | null>(null)
+  // Number of individually-deleted occurrences in this series.  Stored so
+  // buildSavePayload can add it back to the display count (repeatCount) and
+  // write the correct total COUNT into the recurrence rule — preventing
+  // Save Series from truncating the series.
+  const [deletedOccurrenceCount, setDeletedOccurrenceCount] = useState<number>(0)
 
   useEffect(() => {
     if (task) applyEditableData(occurrence || task)
@@ -135,10 +140,19 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     setPriority(source.priority || 'ROUTINE')
 
     const parsedRule = parseRecurrenceRule(source.series_recurrence_rule || task?.series_recurrence_rule || source.recurrence_rule || task?.recurrence_rule)
+    // Occurrences deleted individually via "Delete Occurrence" reduce the
+    // effective count displayed to the user (COUNT - deleted).
+    // We store deletedCount separately so buildSavePayload can add it back
+    // and keep the actual series COUNT unchanged.
+    const deletedCount = typeof source.deleted_occurrence_count === 'number'
+      ? source.deleted_occurrence_count
+      : 0
+    setDeletedOccurrenceCount(deletedCount)
     if (parsedRule && parsedRule.freq) {
       const isWeekly = parsedRule.freq === 'WEEKLY'
       setRepeatFrequency(isWeekly ? 'WEEKLY' : 'DAILY')
-      setRepeatCount(parsedRule.count ?? (isWeekly ? 4 : 5))
+      const rawCount = parsedRule.count ?? (isWeekly ? 4 : 5)
+      setRepeatCount(Math.max(1, rawCount - deletedCount))
       if (isWeekly) {
         setRepeatDays(parsedRule.byDay.length ? parsedRule.byDay : taskDate ? [weekdayCode(taskDate)] : ['MO'])
       } else {
@@ -146,7 +160,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       }
     } else {
       setRepeatFrequency('DAILY')
-      setRepeatCount(5)
+      setRepeatCount(Math.max(1, 5 - deletedCount))
       setRepeatDays(taskDate ? [weekdayCode(taskDate)] : ['MO'])
     }
   }
@@ -158,6 +172,8 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
   // When editing an existing weekly series the weekday must not change.
   // `task.id` being present means we are editing (not creating).
   const weekdayLocked = !!(task?.id) && repeatFrequency === 'WEEKLY'
+  // Recurrence type (Daily / Weekly) cannot be changed once a series exists.
+  const frequencyLocked = !!(task?.id)
 
   if (!open) return null
 
@@ -182,6 +198,11 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()
     }
 
+    // repeatCount is the UI display value (rawCount - deletedOccurrenceCount).
+    // Add deletedOccurrenceCount back so the rule always carries the full
+    // series COUNT and Save Series never truncates the series.
+    const seriesCount = repeatCount + deletedOccurrenceCount
+
     if (repeatFrequency === 'DAILY') {
       return {
         title,
@@ -189,7 +210,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
         priority,
         timezone: browserTimezone(),
         is_recurring: true,
-        recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays),
+        recurrence_rule: buildRecurrenceRule(repeatFrequency, seriesCount, repeatDays),
       }
     }
 
@@ -213,7 +234,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
       priority,
       timezone: browserTimezone(),
       is_recurring: true,
-      recurrence_rule: buildRecurrenceRule(repeatFrequency, repeatCount, repeatDays),
+      recurrence_rule: buildRecurrenceRule(repeatFrequency, seriesCount, repeatDays),
     }
     return payload
   }
@@ -336,11 +357,17 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
             </select>
           </div>
           <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:8, flexWrap:'wrap'}}>
-            <select className="priority-select" value={repeatFrequency} onChange={e => {
-              const f = e.target.value as RepeatFrequency
-              setRepeatFrequency(f)
-              if (f === 'WEEKLY') setRepeatCount(4)
-            }}>
+            <select
+              className="priority-select"
+              value={repeatFrequency}
+              disabled={frequencyLocked}
+              style={frequencyLocked ? { opacity: 0.3} : undefined}
+              onChange={e => {
+                const f = e.target.value as RepeatFrequency
+                setRepeatFrequency(f)
+                if (f === 'WEEKLY') setRepeatCount(4)
+              }}
+            >
               <option value="DAILY">Daily</option>
               <option value="WEEKLY">Weekly</option>
             </select>

@@ -72,6 +72,16 @@ class IsOwner(permissions.BasePermission):
         return obj.user == request.user
 
 
+# Fields that belong to the series definition and should be overwritten on all
+# occurrences when "Save Series" is used.  Per-occurrence ``status``
+# (completion) is intentionally excluded so individual completion marks survive
+# a series-level edit.
+_SERIES_OVERRIDE_FIELDS = frozenset({
+    'title', 'description', 'date', 'end_date', 'duration_minutes',
+    'all_day', 'timezone', 'priority', 'is_recurring', 'recurrence_rule',
+})
+
+
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -81,6 +91,25 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def _clear_series_overrides(self, task):
+        """Strip series-controlled fields from every non-deleted occurrence exception.
+
+        Called after a full-series update so that all occurrences (including those
+        previously edited individually via "Save Occurrence") reflect the new series
+        values.  The per-occurrence ``status`` field (completion) is preserved.
+        Exceptions with ``is_deleted=True`` ("Delete Occurrence") are left untouched.
+        """
+        to_update = []
+        for exc in task.exceptions.filter(is_deleted=False):
+            if not exc.override_data:
+                continue
+            cleaned = {k: v for k, v in exc.override_data.items()
+                       if k not in _SERIES_OVERRIDE_FIELDS}
+            exc.override_data = cleaned if cleaned else None
+            to_update.append(exc)
+        for exc in to_update:
+            exc.save(update_fields=['override_data'])
 
     def _parse_occurrence(self, request):
         occurrence = request.query_params.get('occurrence') or request.data.get('occurrence_date')
@@ -165,7 +194,13 @@ class TaskViewSet(viewsets.ModelViewSet):
             exception = self._save_instance_exception(task, request, delete_only=False)
             serializer = RecurrenceExceptionSerializer(exception)
             return Response(serializer.data)
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        # After updating the series, propagate new values to all occurrences by
+        # clearing per-occurrence overrides (excluding completion status).
+        task = self.get_object()
+        if task.is_recurring:
+            self._clear_series_overrides(task)
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         if request.query_params.get('mode') == 'instance':

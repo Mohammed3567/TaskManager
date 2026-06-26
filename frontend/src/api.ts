@@ -257,6 +257,9 @@ export async function getTaskOccurrence(id: string, occurrence: string, occurren
     ? matchingException.override_data
     : null
   const snapshot = occurrenceSnapshot && typeof occurrenceSnapshot === 'object' ? occurrenceSnapshot : {}
+  const deletedOccurrenceCount = Array.isArray(exceptions)
+    ? exceptions.filter((exc: any) => exc.is_deleted).length
+    : 0
   const merged: any = {
     ...task,
     ...snapshot,
@@ -271,6 +274,7 @@ export async function getTaskOccurrence(id: string, occurrence: string, occurren
       : (snapshot.date || occurrence),
     occurrence_date: occurrenceKey,
     original_occurrence_date: occurrenceKey,
+    deleted_occurrence_count: deletedOccurrenceCount,
   }
   return merged
 }
