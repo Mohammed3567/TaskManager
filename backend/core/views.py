@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.utils.dateparse import parse_datetime
 from .models import Task, Tag, RecurrenceException
 from .serializers import TaskSerializer, TagSerializer
-from .utils import expand_recurring_tasks
+from .utils import expand_recurring_tasks, normalize_occurrence_dt
 from rest_framework.views import APIView
 from rest_framework import status
 from django.contrib.auth import authenticate, login, logout
@@ -72,6 +72,16 @@ class IsOwner(permissions.BasePermission):
         return obj.user == request.user
 
 
+# Fields that belong to the series definition and should be overwritten on all
+# occurrences when "Save Series" is used.  Per-occurrence ``status``
+# (completion) is intentionally excluded so individual completion marks survive
+# a series-level edit.
+_SERIES_OVERRIDE_FIELDS = frozenset({
+    'title', 'description', 'date', 'end_date', 'duration_minutes',
+    'all_day', 'timezone', 'priority', 'is_recurring', 'recurrence_rule',
+})
+
+
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -82,6 +92,25 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def _clear_series_overrides(self, task):
+        """Strip series-controlled fields from every non-deleted occurrence exception.
+
+        Called after a full-series update so that all occurrences (including those
+        previously edited individually via "Save Occurrence") reflect the new series
+        values.  The per-occurrence ``status`` field (completion) is preserved.
+        Exceptions with ``is_deleted=True`` ("Delete Occurrence") are left untouched.
+        """
+        to_update = []
+        for exc in task.exceptions.filter(is_deleted=False):
+            if not exc.override_data:
+                continue
+            cleaned = {k: v for k, v in exc.override_data.items()
+                       if k not in _SERIES_OVERRIDE_FIELDS}
+            exc.override_data = cleaned if cleaned else None
+            to_update.append(exc)
+        for exc in to_update:
+            exc.save(update_fields=['override_data'])
+
     def _parse_occurrence(self, request):
         occurrence = request.query_params.get('occurrence') or request.data.get('occurrence_date')
         if not occurrence:
@@ -91,13 +120,24 @@ class TaskViewSet(viewsets.ModelViewSet):
         occ_dt = parse_datetime(occurrence)
         if occ_dt is None:
             raise ValidationError('invalid occurrence datetime')
-        return occ_dt
+        return normalize_occurrence_dt(occ_dt)
+
+    def _find_exception(self, task, occ_dt):
+        occ_n = normalize_occurrence_dt(occ_dt)
+        for exc in task.exceptions.all():
+            if normalize_occurrence_dt(exc.occurrence_date) == occ_n:
+                return exc
+        return None
 
     def _save_instance_exception(self, task, request, delete_only=False):
         if not task.is_recurring:
             raise ValidationError('cannot manage instance exceptions for non-recurring tasks')
         occ_dt = self._parse_occurrence(request)
-        exception, _ = RecurrenceException.objects.get_or_create(task=task, occurrence_date=occ_dt)
+        exception = self._find_exception(task, occ_dt)
+        if exception is None:
+            exception = RecurrenceException.objects.create(task=task, occurrence_date=occ_dt)
+        elif exception.occurrence_date != occ_dt:
+            exception.occurrence_date = occ_dt
         if delete_only:
             exception.is_deleted = True
             exception.override_data = None
@@ -111,7 +151,10 @@ class TaskViewSet(viewsets.ModelViewSet):
             override_data = override_data or {}
             if isinstance(override_data, dict) and override_data.get('status') == 'DONE':
                 override_data['status'] = 'COMPLETED'
-            exception.override_data = override_data
+            # Merge into existing override data so previously saved fields
+            # (edited date, title, priority, …) are never discarded.
+            existing = exception.override_data or {}
+            exception.override_data = {**existing, **override_data}
         exception.save()
         return exception
 
@@ -151,7 +194,13 @@ class TaskViewSet(viewsets.ModelViewSet):
             exception = self._save_instance_exception(task, request, delete_only=False)
             serializer = RecurrenceExceptionSerializer(exception)
             return Response(serializer.data)
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        # After updating the series, propagate new values to all occurrences by
+        # clearing per-occurrence overrides (excluding completion status).
+        task = self.get_object()
+        if task.is_recurring:
+            self._clear_series_overrides(task)
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         if request.query_params.get('mode') == 'instance':
@@ -273,50 +322,3 @@ class AnalyticsView(APIView):
         })
 
 
-class QuickAddView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        text = (request.data.get('text') or '').strip()
-        if not text:
-            return Response({'detail': 'text is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        now = timezone.now()
-        date = now
-        # simple NLP heuristics
-        if re.search(r'\btomorrow\b', text, re.I):
-            date = now + datetime.timedelta(days=1)
-        elif re.search(r'\btoday\b', text, re.I):
-            date = now
-        else:
-            m = re.search(r'\bin (\d+) days?\b', text, re.I)
-            if m:
-                days = int(m.group(1))
-                date = now + datetime.timedelta(days=days)
-
-        # parse time expressions like 'at 9am' or 'at 9:30 pm'
-        tm = re.search(r'at (\d{1,2})(?::(\d{2}))?\s*(am|pm)?', text, re.I)
-        if tm:
-            hour = int(tm.group(1))
-            minute = int(tm.group(2) or 0)
-            ampm = tm.group(3)
-            if ampm:
-                if ampm.lower() == 'pm' and hour < 12:
-                    hour += 12
-                if ampm.lower() == 'am' and hour == 12:
-                    hour = 0
-            date = date.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        else:
-            # default to 09:00 local
-            date = date.replace(hour=9, minute=0, second=0, microsecond=0)
-
-        # create task with minimal required fields
-        payload = {
-            'title': text,
-            'date': date.isoformat(),
-            'priority': 'IMPORTANT'
-        }
-        serializer = TaskSerializer(data=payload)
-        serializer.is_valid(raise_exception=True)
-        task = serializer.save(user=request.user)
-        return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)

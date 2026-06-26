@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import { getOccurrences, login, getTask, register, getMe, logout, updateTask, updateTaskInstance, createTask, quickAdd } from './api'
+import { getOccurrences, login, getTaskOccurrence, register, getMe, logout, updateTask, updateTaskInstance } from './api'
 import ErrorBoundary from './components/ErrorBoundary'
 import { logClientError } from './components/clientLogging'
 import MonthView from './components/MonthView'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import TaskModal from './components/TaskModal'
+import RecurringTaskModal from './components/RecurringTaskModal'
 import Analytics from './components/Analytics'
 import FocusTimer from './components/FocusTimer'
-import TemplatesSelect from './components/TemplatesSelect'
 
 function monthStartISO(d: Date) {
   const s = new Date(d.getFullYear(), d.getMonth(), 1)
@@ -54,20 +54,32 @@ export default function App() {
   const [occ, setOcc] = useState<any[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [user, setUser] = useState<any | null>(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [u, setU] = useState('')
   const [p, setP] = useState('')
-  const [viewDate, setViewDate] = useState<Date>(new Date())
+  // Each view remembers its own navigation date independently (Task 4)
+  const [monthViewDate, setMonthViewDate] = useState<Date>(new Date())
+  const [weekViewDate, setWeekViewDate] = useState<Date>(new Date())
+  const [dayViewDate, setDayViewDate] = useState<Date>(new Date())
   const [view, setView] = useState<'month'|'week'|'day'|'analytics'>('month')
   const [headerAnimate, setHeaderAnimate] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
-  const [quickText, setQuickText] = useState('')
   const [showTimer, setShowTimer] = useState(false)
+  const [timerMounted, setTimerMounted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
+  const [modalPriority, setModalPriority] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
-  const [modalInitialDuration, setModalInitialDuration] = useState<number | null>(null)
-  const [selectionRange, setSelectionRange] = useState<{start:string,end:string}|null>(null)
-  const monthDate = viewDate
+  const [editingOccurrence, setEditingOccurrence] = useState<any | null>(null)
+  const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0)
+  const [appNotice, setAppNotice] = useState<string | null>(null)
+  // Derived: the date that drives the current view's navigation and data load.
+  // Does NOT change when a different view's date is updated.
+  const activeDate =
+    view === 'week' ? weekViewDate :
+    view === 'day'  ? dayViewDate  :
+    monthViewDate
+
   function toYMDLocal(d: Date) {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -79,7 +91,7 @@ export default function App() {
       const res = await login(u, p)
       setUser(res)
     } catch (err) {
-      alert('Login failed')
+      console.error(err)
     }
   }
 
@@ -109,22 +121,39 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (user) loadOccurrences(viewDate, view)
-  }, [user, viewDate, view])
+    if (user) loadOccurrences(activeDate, view)
+  // activeDate already captures the relevant view date; no need to list all three.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeDate, view])
 
   useEffect(() => {
-    // check existing session on mount
-    let mounted = true
-    getMe().then((u:any)=>{ if (mounted && u) setUser(u) }).catch(()=>{})
-    return ()=>{ mounted = false }
+  let mounted = true
+
+  getMe()
+    .then((u: any) => {
+      if (mounted && u) {
+        setUser(u)
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      if (mounted) {
+        setCheckingAuth(false)
+      }
+    })
+
+  return () => {
+    mounted = false
+    }
   }, [])
 
   useEffect(() => {
-    // Animate header briefly when view or date changes
+    // Animate header briefly when view or the active date changes
     setHeaderAnimate(true)
     const t = setTimeout(()=> setHeaderAnimate(false), 420)
     return () => clearTimeout(t)
-  }, [viewDate, view])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDate, view])
 
   function headerTitleForView(viewMode: string, d: Date) {
     if (viewMode === 'month') return d.toLocaleString(undefined, { month: 'long', year: 'numeric' })
@@ -148,48 +177,54 @@ export default function App() {
   }, [])
 
   function prevMonth() {
-    setViewDate(d => {
-      const next = new Date(d)
-      if (view === 'month') next.setMonth(next.getMonth() - 1)
-      else if (view === 'week') next.setDate(next.getDate() - 7)
-      else next.setDate(next.getDate() - 1)
-      return next
-    })
+    if (view === 'month') {
+      setMonthViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n })
+    } else if (view === 'week') {
+      setWeekViewDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+    } else if (view === 'day') {
+      setDayViewDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
+    }
   }
 
   function nextMonth() {
-    setViewDate(d => {
-      const next = new Date(d)
-      if (view === 'month') next.setMonth(next.getMonth() + 1)
-      else if (view === 'week') next.setDate(next.getDate() + 7)
-      else next.setDate(next.getDate() + 1)
-      return next
-    })
+    if (view === 'month') {
+      setMonthViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n })
+    } else if (view === 'week') {
+      setWeekViewDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+    } else if (view === 'day') {
+      setDayViewDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n })
+    }
   }
 
-  function openCreateFor(dateISO: string) {
-    // set the calendar view date to the clicked date so Day view will reflect newly created tasks
+  function openCreateFor(dateISO: string, priority?: string) {
     const parsed = parseIsoOrYmd(dateISO)
-    setViewDate(parsed)
+    // Update only the active view's date
+    if (view === 'month') setMonthViewDate(parsed)
+    else if (view === 'week') setWeekViewDate(parsed)
+    else if (view === 'day') setDayViewDate(parsed)
     setModalDate(dateISO)
-    // do not open modal in "occurrence edit" mode — simplified UI
+    setModalPriority(priority || null)
     setEditingTask(null)
+    setEditingOccurrence(null)
     setModalOpen(true)
   }
 
-  async function openEditFor(taskId: string, occurrenceISO: string) {
+  async function openEditFor(taskId: string, occurrenceISO: string, occurrence?: any) {
     try {
-      const t = await getTask(taskId)
+      const occurrenceKey = occurrence?.original_occurrence_date || occurrence?.occurrence_date || occurrenceISO
+      const t = await getTaskOccurrence(taskId, occurrenceKey, occurrence)
       setEditingTask(t)
-      // ensure the view date matches the occurrence being edited
+      setEditingOccurrence(t)
+      // Update only the active view's date to match the occurrence being edited
       const parsed = parseIsoOrYmd(occurrenceISO)
-      setViewDate(parsed)
-      setModalDate(occurrenceISO)
-      // always open task edit (not occurrence edit)
-      // occurrence overrides are hidden from the UI
+      if (view === 'month') setMonthViewDate(parsed)
+      else if (view === 'week') setWeekViewDate(parsed)
+      else if (view === 'day') setDayViewDate(parsed)
+      setModalDate(occurrenceKey)
       setModalOpen(true)
     } catch (err) {
-      alert('Failed to load task')
+      console.error(err)
+      setAppNotice('Failed to load task')
     }
   }
 
@@ -214,36 +249,25 @@ export default function App() {
       } else {
         await updateTask(taskId, { status: done ? 'COMPLETED' : 'PENDING' })
       }
-      loadOccurrences(viewDate, view)
+      loadOccurrences(activeDate, view)
+      setAnalyticsRefreshKey(key => key + 1)
     } catch (err: any) {
       console.error(err)
-      alert(err?.message || 'Failed to update task status')
+      setAppNotice(err?.message || 'Failed to update task status')
     }
   }
 
-  function openRangeSelect(startIso: string, endIso: string) {
-    const s = new Date(startIso)
-    const e = new Date(endIso)
-    // make selection inclusive of end slot by adding 1 hour
-    const endInclusive = new Date(e.getTime() + 60*60*1000)
-    const durationMs = Math.abs(endInclusive.getTime() - s.getTime())
-    const durationMin = Math.max(15, Math.round(durationMs / 60000))
-    setModalDate(s.toISOString())
-    setModalInitialDuration(durationMin)
-    setEditingTask(null)
-    setModalOpen(true)
-    setSelectionRange({ start: s.toISOString(), end: endInclusive.toISOString() })
-  }
-
-  function handleSaved(res: any) {
-    // refresh occurrences for current view range
-    loadOccurrences(viewDate, view)
-    setSelectionRange(null)
+  async function handleSaved(res: any) {
+    if (view !== 'analytics') {
+      await loadOccurrences(activeDate, view)
+    }
+    setAnalyticsRefreshKey(key => key + 1)
   }
 
   function handleCloseModal() {
     setModalOpen(false)
-    setSelectionRange(null)
+    setEditingOccurrence(null)
+    setModalPriority(null)
   }
 
   function AuthPage({ onAuth }: any) {
@@ -252,46 +276,67 @@ export default function App() {
     const [password, setPassword] = useState('')
     const [email, setEmail] = useState('')
     const [loadingAuth, setLoadingAuth] = useState(false)
+    const [authError, setAuthError] = useState<string | null>(null)
+    const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
     async function doRegister(e?: React.FormEvent) {
       e && e.preventDefault()
+      if (successMsg) return
       setLoadingAuth(true)
+      setAuthError(null)
       try {
         await register(username, password, email)
-        // auto-login after register
         const u = await login(username, password)
-        onAuth(u)
+        setSuccessMsg(`Welcome, ${username}!`)
+        setLoadingAuth(false)
+        setTimeout(() => onAuth(u), 2000)
       } catch (err: any) {
-        alert(err?.message || 'Register failed')
-      } finally { setLoadingAuth(false) }
+        setAuthError(err?.message || 'Register failed')
+        setLoadingAuth(false)
+      }
     }
 
     async function doLoginLocal(e?: React.FormEvent) {
       e && e.preventDefault()
+      if (successMsg) return
       setLoadingAuth(true)
+      setAuthError(null)
       try {
         const u = await login(username, password)
-        onAuth(u)
+        setSuccessMsg(`Welcome back, ${username}!`)
+        setLoadingAuth(false)
+        setTimeout(() => onAuth(u), 2000)
       } catch (err: any) {
-        alert(err?.message || 'Login failed')
-      } finally { setLoadingAuth(false) }
+        setAuthError(err?.message || 'Login failed')
+        setLoadingAuth(false)
+      }
     }
 
     return (
       <div className="auth-overlay">
         <div className="auth-card" role="dialog" aria-modal="true">
-          <h2 style={{marginTop:0}}>Welcome to Task Manager</h2>
+          <h2 style={{marginTop:0}}>Welcome to Yoga-Do</h2>
           <div style={{display:'flex', gap:8, marginBottom:14}}>
-            <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>setMode('login')}>Sign In</button>
-            <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>setMode('register')}>Register</button>
+            <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>{ setMode('login'); setAuthError(null); setSuccessMsg(null) }}>Sign In</button>
+            <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>{ setMode('register'); setAuthError(null); setSuccessMsg(null) }}>Register</button>
           </div>
+          {authError && (
+            <div role="alert" style={{color:'#fecaca', fontSize:13, marginBottom:10, padding:'8px 10px', background:'rgba(239,68,68,0.08)', borderRadius:6, border:'1px solid rgba(239,68,68,0.18)'}}>
+              {authError.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+            </div>
+          )}
+          {successMsg && (
+            <div role="status" style={{color:'#4ade80', fontSize:15, fontWeight:600, marginBottom:10, padding:'10px 12px', background:'rgba(74,222,128,0.08)', borderRadius:6, border:'1px solid rgba(74,222,128,0.22)', textAlign:'center'}}>
+              {successMsg}
+            </div>
+          )}
           <form onSubmit={mode==='register' ? doRegister : doLoginLocal}>
             <input className="login-input" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
             {mode==='register' && <input className="login-input" placeholder="Email (optional)" value={email} onChange={e=>setEmail(e.target.value)} />}
             <input className="login-input" placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
             <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:12}}>
-              <button className="btn" type="button" onClick={()=>{ setUsername(''); setPassword(''); setEmail('') }}>Clear</button>
-              <button className="btn primary" type="submit">{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register' : 'Sign In')}</button>
+              <button className="btn" type="button" onClick={()=>{ setUsername(''); setPassword(''); setEmail(''); setAuthError(null); setSuccessMsg(null) }}>Clear</button>
+              <button className="btn primary" type="submit" disabled={!!successMsg}>{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register' : 'Sign In')}</button>
             </div>
           </form>
         </div>
@@ -299,6 +344,15 @@ export default function App() {
     )
   }
 
+  if (checkingAuth) {
+    return (
+      <div className="app">
+        <div className="loading-screen">
+          Loading...
+        </div>
+      </div>
+    )
+  } 
   return (
     <div className="app">
       {!user ? (
@@ -307,44 +361,67 @@ export default function App() {
       <ErrorBoundary>
       <>
       <div className="header">
-        <div className="brand">Task Manager</div>
+        <div className="brand">Yoga-Do</div>
         <div className="controls" style={{display:'flex', alignItems:'center', gap:12}}>
           <div className="small">Signed in as {user.username}</div>
-          <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); alert('Logout failed') } }}>Logout</button>
+          <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); console.error(e) } }}>Logout</button>
         </div>
       </div>
 
       <div style={{marginTop:18}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:'12px'}}>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
-                <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
-                <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
-                <button className={`btn ${view==='analytics' ? 'active' : ''}`} onClick={()=>setView('analytics')}>Dashboard</button>
+        {appNotice && (
+          <div className="card" role="status" style={{padding:12, marginBottom:12, color:'#fecaca', display:'flex', justifyContent:'space-between', gap:12}}>
+            <span>{appNotice}</span>
+            <button className="btn" type="button" onClick={() => setAppNotice(null)}>Dismiss</button>
           </div>
-          <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-              <button className="btn" onClick={prevMonth}>Prev</button>
-              <button className="btn" onClick={nextMonth}>Next</button>
-          </div>
-              <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-                <input className="login-input" placeholder="Quick Add (e.g. 'Meeting tomorrow at 9am')" value={quickText} onChange={e=>setQuickText(e.target.value)} style={{width:250}} />
-                <button className="btn" onClick={async ()=>{ if (!quickText) return alert('Enter text'); try { const res = await quickAdd(quickText); setQuickText(''); handleSaved(res); alert('Added'); } catch (err:any) { alert(err?.message || 'Quick add failed') } }}>Quick Add</button>
-                <TemplatesSelect onApply={async (payload:any) => { try { await createTask(payload); loadOccurrences(viewDate, view); alert('Template created') } catch (err) { console.error(err); alert('Template failed') } }} />
-                <button className="btn" onClick={()=>setShowTimer(s=>!s)}>{showTimer? 'Hide Timer':'Focus Timer'}</button>
-              </div>
-        </div>
+        )}
+  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:'12px'}}>
+    
+    <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+      <button className={`btn ${view==='month' ? 'active' : ''}`} onClick={()=>setView('month')}>Month</button>
+      <button className={`btn ${view==='week' ? 'active' : ''}`} onClick={()=>setView('week')}>Week</button>
+      <button className={`btn ${view==='day' ? 'active' : ''}`} onClick={()=>setView('day')}>Day</button>
+      <button className={`btn ${view==='analytics' ? 'active' : ''}`} onClick={()=>setView('analytics')}>Dashboard</button>
+      <button
+  className="btn"
+  onClick={() => {
+    if (!timerMounted) setTimerMounted(true)
+    setShowTimer(s => !s)
+  }}
+>
+  {showTimer ? 'Hide Timer' : 'Focus Timer'}
+</button>
+    </div>
 
-              {showTimer && <FocusTimer onClose={() => setShowTimer(false)} />}
+    <div style={{display:'flex', gap:8, alignItems:'center'}}>
+        <button className="btn" onClick={prevMonth}>Prev</button>
+        <button className="btn" onClick={nextMonth}>Next</button>
+        <button className="btn create-task-btn" onClick={()=>openCreateFor(activeDate.toISOString())}>
+          + Create Task
+        </button>
+      </div>
+
+  </div>
+        {timerMounted && (
+  <FocusTimer
+    hidden={!showTimer}
+    onHide={() => setShowTimer(false)}
+    onClose={() => {
+      setShowTimer(false)
+      setTimerMounted(false)
+    }}
+  />
+)}
         {(view === 'month' || view === 'week' || view === 'day') && (
           <div className="top-left-header">
-            <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, viewDate)}</div>
+            <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, activeDate)}</div>
             <div className="occurrences-count">Occurrences ({occ?.length ?? 0})</div>
           </div>
         )}
         {view === 'month' && (
           <MonthView
             occurrences={occ || []}
-            monthDate={monthDate}
+            monthDate={monthViewDate}
             onDayClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
@@ -353,7 +430,7 @@ export default function App() {
         {view === 'week' && (
           <WeekView
             occurrences={occ || []}
-            weekDate={monthDate}
+            weekDate={weekViewDate}
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
@@ -362,18 +439,36 @@ export default function App() {
         {view === 'day' && (
           <DayView
             occurrences={occ || []}
-            dayDate={toYMDLocal(monthDate)}
+            dayDate={toYMDLocal(dayViewDate)}
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
           />
         )}
         {view === 'analytics' && (
-          <Analytics />
+          <Analytics refreshKey={analyticsRefreshKey} />
         )}
 
         {!occ && <div className="card" style={{padding:18}}>Sign in and click Prev/Next to load occurrences for a month.</div>}
-        {modalOpen && <TaskModal open={modalOpen} initialDate={modalDate} task={editingTask} initialDurationMinutes={modalInitialDuration} onClose={handleCloseModal} onSaved={handleSaved} />}
+        {modalOpen && (editingTask?.is_recurring ? (
+          <RecurringTaskModal
+            open={modalOpen}
+            task={editingTask}
+            occurrence={editingOccurrence}
+            occurrenceDate={modalDate}
+            onClose={handleCloseModal}
+            onSaved={handleSaved}
+          />
+        ) : (
+          <TaskModal
+            open={modalOpen}
+            initialDate={modalDate}
+            initialPriority={modalPriority}
+            task={editingTask}
+            onClose={handleCloseModal}
+            onSaved={handleSaved}
+          />
+        ))}
       </div>
       </>
       </ErrorBoundary>

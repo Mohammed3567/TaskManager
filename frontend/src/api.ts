@@ -1,5 +1,55 @@
 const API_BASE = 'http://localhost:8000' // backend dev server
 
+// Maps raw API error text to clean, human-readable messages.
+function formatLoginError(txt: string): string {
+  try {
+    const data = JSON.parse(txt)
+    if (data.detail) {
+      const d = String(data.detail).toLowerCase()
+      if (d.includes('invalid') || d.includes('credential') || d.includes('password') || d.includes('username') || d.includes('not found')) {
+        return 'Invalid username or password.'
+      }
+      return String(data.detail)
+    }
+    if (Array.isArray(data.non_field_errors) && data.non_field_errors.length) {
+      return data.non_field_errors.join(' ')
+    }
+  } catch { /* non-JSON fallback below */ }
+  return 'Invalid username or password.'
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  username: 'Username',
+  password: 'Password',
+  email: 'Email',
+}
+
+function formatRegisterError(txt: string): string {
+  try {
+    const data = JSON.parse(txt)
+    const messages: string[] = []
+    for (const [field, errors] of Object.entries(data)) {
+      const label = FIELD_LABELS[field] ?? field
+      const errs: string[] = Array.isArray(errors) ? errors.map(String) : [String(errors)]
+      for (const msg of errs) {
+        if (/may not be blank|is required|blank/i.test(msg)) {
+          messages.push(`${label} is required.`)
+        } else if (/valid email/i.test(msg)) {
+          messages.push('Email is invalid.')
+        } else if (/already exists/i.test(msg)) {
+          messages.push(`${label} already exists.`)
+        } else if (field === 'non_field_errors' || field === 'detail') {
+          messages.push(msg)
+        } else {
+          messages.push(`${label}: ${msg}`)
+        }
+      }
+    }
+    if (messages.length) return messages.join('\n')
+  } catch { /* non-JSON fallback below */ }
+  return 'Registration failed. Please check your details.'
+}
+
 function getCSRF() {
   try {
     if (typeof document === 'undefined') return null
@@ -22,7 +72,7 @@ export async function login(username: string, password: string) {
   if (!resp.ok) {
     const txt = await resp.text()
     console.error('Login failed:', resp.status, txt)
-    throw new Error(txt || `Login failed (${resp.status})`)
+    throw new Error(formatLoginError(txt))
   }
   return resp.json()
 }
@@ -40,7 +90,7 @@ export async function register(username: string, password: string, email?: strin
   })
   if (!resp.ok) {
     const txt = await resp.text()
-    throw new Error(txt || 'Register failed')
+    throw new Error(formatRegisterError(txt))
   }
   return resp.json()
 }
@@ -166,10 +216,67 @@ export async function createException(payload: any) {
   return resp.json()
 }
 
+export async function getTaskExceptions(id: string) {
+  const resp = await fetch(`${API_BASE}/api/tasks/${id}/exceptions/`, { credentials: 'include' })
+  if (!resp.ok) throw new Error('Fetching task exceptions failed')
+  return resp.json()
+}
+
 export async function getTask(id: string) {
   const resp = await fetch(`${API_BASE}/api/tasks/${id}/`, { credentials: 'include' })
   if (!resp.ok) throw new Error('Get task failed')
   return resp.json()
+}
+
+function parseOccurrenceDate(value?: string | null) {
+  if (!value) return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function sameOccurrenceDate(a?: string | null, b?: string | null) {
+  const da = parseOccurrenceDate(a)
+  const db = parseOccurrenceDate(b)
+  if (da && db) return da.getTime() === db.getTime()
+  return a === b
+}
+
+export async function getTaskOccurrence(id: string, occurrence: string, occurrenceSnapshot?: any) {
+  const [task, exceptions] = await Promise.all([
+    getTask(id),
+    getTaskExceptions(id).catch(() => []),
+  ])
+  const occurrenceKey =
+    occurrenceSnapshot?.original_occurrence_date ||
+    occurrenceSnapshot?.occurrence_date ||
+    occurrence
+  const matchingException = Array.isArray(exceptions)
+    ? exceptions.find((exc: any) => sameOccurrenceDate(exc.occurrence_date, occurrenceKey))
+    : null
+  const override = matchingException?.override_data && typeof matchingException.override_data === 'object'
+    ? matchingException.override_data
+    : null
+  const snapshot = occurrenceSnapshot && typeof occurrenceSnapshot === 'object' ? occurrenceSnapshot : {}
+  const deletedOccurrenceCount = Array.isArray(exceptions)
+    ? exceptions.filter((exc: any) => exc.is_deleted).length
+    : 0
+  const merged: any = {
+    ...task,
+    ...snapshot,
+    ...(override || {}),
+    id: task.id,
+    task_id: task.id,
+    is_recurring: task.is_recurring,
+    series_date: task.date,
+    series_recurrence_rule: task.recurrence_rule,
+    date: (override && Object.prototype.hasOwnProperty.call(override, 'date'))
+      ? override.date
+      : (snapshot.date || occurrence),
+    occurrence_date: occurrenceKey,
+    original_occurrence_date: occurrenceKey,
+    deleted_occurrence_count: deletedOccurrenceCount,
+  }
+  return merged
 }
 
 export async function getAnalytics(start?: string, end?: string) {
@@ -182,17 +289,3 @@ export async function getAnalytics(start?: string, end?: string) {
   return resp.json()
 }
 
-export async function quickAdd(text: string) {
-  const csrfToken = await ensureCsrfToken()
-  const resp = await fetch(`${API_BASE}/api/core/quick_add/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-    body: JSON.stringify({ text }),
-    credentials: 'include'
-  })
-  if (!resp.ok) {
-    const txt = await resp.text().catch(()=>null)
-    throw new Error(txt || 'Quick add failed')
-  }
-  return resp.json()
-}
