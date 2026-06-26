@@ -57,7 +57,10 @@ export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [u, setU] = useState('')
   const [p, setP] = useState('')
-  const [viewDate, setViewDate] = useState<Date>(new Date())
+  // Each view remembers its own navigation date independently (Task 4)
+  const [monthViewDate, setMonthViewDate] = useState<Date>(new Date())
+  const [weekViewDate, setWeekViewDate] = useState<Date>(new Date())
+  const [dayViewDate, setDayViewDate] = useState<Date>(new Date())
   const [view, setView] = useState<'month'|'week'|'day'|'analytics'>('month')
   const [headerAnimate, setHeaderAnimate] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -65,11 +68,18 @@ export default function App() {
   const [timerMounted, setTimerMounted] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalDate, setModalDate] = useState<string | null>(null)
+  const [modalPriority, setModalPriority] = useState<string | null>(null)
   const [editingTask, setEditingTask] = useState<any | null>(null)
   const [editingOccurrence, setEditingOccurrence] = useState<any | null>(null)
   const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0)
   const [appNotice, setAppNotice] = useState<string | null>(null)
-  const monthDate = viewDate
+  // Derived: the date that drives the current view's navigation and data load.
+  // Does NOT change when a different view's date is updated.
+  const activeDate =
+    view === 'week' ? weekViewDate :
+    view === 'day'  ? dayViewDate  :
+    monthViewDate
+
   function toYMDLocal(d: Date) {
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -111,8 +121,10 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (user) loadOccurrences(viewDate, view)
-  }, [user, viewDate, view])
+    if (user) loadOccurrences(activeDate, view)
+  // activeDate already captures the relevant view date; no need to list all three.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, activeDate, view])
 
   useEffect(() => {
   let mounted = true
@@ -136,11 +148,12 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    // Animate header briefly when view or date changes
+    // Animate header briefly when view or the active date changes
     setHeaderAnimate(true)
     const t = setTimeout(()=> setHeaderAnimate(false), 420)
     return () => clearTimeout(t)
-  }, [viewDate, view])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDate, view])
 
   function headerTitleForView(viewMode: string, d: Date) {
     if (viewMode === 'month') return d.toLocaleString(undefined, { month: 'long', year: 'numeric' })
@@ -164,29 +177,33 @@ export default function App() {
   }, [])
 
   function prevMonth() {
-    setViewDate(d => {
-      const next = new Date(d)
-      if (view === 'month') next.setMonth(next.getMonth() - 1)
-      else if (view === 'week') next.setDate(next.getDate() - 7)
-      else next.setDate(next.getDate() - 1)
-      return next
-    })
+    if (view === 'month') {
+      setMonthViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() - 1); return n })
+    } else if (view === 'week') {
+      setWeekViewDate(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+    } else if (view === 'day') {
+      setDayViewDate(d => { const n = new Date(d); n.setDate(n.getDate() - 1); return n })
+    }
   }
 
   function nextMonth() {
-    setViewDate(d => {
-      const next = new Date(d)
-      if (view === 'month') next.setMonth(next.getMonth() + 1)
-      else if (view === 'week') next.setDate(next.getDate() + 7)
-      else next.setDate(next.getDate() + 1)
-      return next
-    })
+    if (view === 'month') {
+      setMonthViewDate(d => { const n = new Date(d); n.setMonth(n.getMonth() + 1); return n })
+    } else if (view === 'week') {
+      setWeekViewDate(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+    } else if (view === 'day') {
+      setDayViewDate(d => { const n = new Date(d); n.setDate(n.getDate() + 1); return n })
+    }
   }
 
-  function openCreateFor(dateISO: string) {
+  function openCreateFor(dateISO: string, priority?: string) {
     const parsed = parseIsoOrYmd(dateISO)
-    setViewDate(parsed)
+    // Update only the active view's date
+    if (view === 'month') setMonthViewDate(parsed)
+    else if (view === 'week') setWeekViewDate(parsed)
+    else if (view === 'day') setDayViewDate(parsed)
     setModalDate(dateISO)
+    setModalPriority(priority || null)
     setEditingTask(null)
     setEditingOccurrence(null)
     setModalOpen(true)
@@ -198,9 +215,11 @@ export default function App() {
       const t = await getTaskOccurrence(taskId, occurrenceKey, occurrence)
       setEditingTask(t)
       setEditingOccurrence(t)
-      // ensure the view date matches the occurrence being edited
+      // Update only the active view's date to match the occurrence being edited
       const parsed = parseIsoOrYmd(occurrenceISO)
-      setViewDate(parsed)
+      if (view === 'month') setMonthViewDate(parsed)
+      else if (view === 'week') setWeekViewDate(parsed)
+      else if (view === 'day') setDayViewDate(parsed)
       setModalDate(occurrenceKey)
       setModalOpen(true)
     } catch (err) {
@@ -230,7 +249,7 @@ export default function App() {
       } else {
         await updateTask(taskId, { status: done ? 'COMPLETED' : 'PENDING' })
       }
-      loadOccurrences(viewDate, view)
+      loadOccurrences(activeDate, view)
       setAnalyticsRefreshKey(key => key + 1)
     } catch (err: any) {
       console.error(err)
@@ -240,7 +259,7 @@ export default function App() {
 
   async function handleSaved(res: any) {
     if (view !== 'analytics') {
-      await loadOccurrences(viewDate, view)
+      await loadOccurrences(activeDate, view)
     }
     setAnalyticsRefreshKey(key => key + 1)
   }
@@ -248,6 +267,7 @@ export default function App() {
   function handleCloseModal() {
     setModalOpen(false)
     setEditingOccurrence(null)
+    setModalPriority(null)
   }
 
   function AuthPage({ onAuth }: any) {
@@ -256,46 +276,67 @@ export default function App() {
     const [password, setPassword] = useState('')
     const [email, setEmail] = useState('')
     const [loadingAuth, setLoadingAuth] = useState(false)
+    const [authError, setAuthError] = useState<string | null>(null)
+    const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
     async function doRegister(e?: React.FormEvent) {
       e && e.preventDefault()
+      if (successMsg) return
       setLoadingAuth(true)
+      setAuthError(null)
       try {
         await register(username, password, email)
-        // auto-login after register
         const u = await login(username, password)
-        onAuth(u)
+        setSuccessMsg(`Welcome, ${username}!`)
+        setLoadingAuth(false)
+        setTimeout(() => onAuth(u), 2000)
       } catch (err: any) {
-        alert(err?.message || 'Register failed')
-      } finally { setLoadingAuth(false) }
+        setAuthError(err?.message || 'Register failed')
+        setLoadingAuth(false)
+      }
     }
 
     async function doLoginLocal(e?: React.FormEvent) {
       e && e.preventDefault()
+      if (successMsg) return
       setLoadingAuth(true)
+      setAuthError(null)
       try {
         const u = await login(username, password)
-        onAuth(u)
+        setSuccessMsg(`Welcome back, ${username}!`)
+        setLoadingAuth(false)
+        setTimeout(() => onAuth(u), 2000)
       } catch (err: any) {
-        alert(err?.message || 'Login failed')
-      } finally { setLoadingAuth(false) }
+        setAuthError(err?.message || 'Login failed')
+        setLoadingAuth(false)
+      }
     }
 
     return (
       <div className="auth-overlay">
         <div className="auth-card" role="dialog" aria-modal="true">
-          <h2 style={{marginTop:0}}>Welcome to Task Manager</h2>
+          <h2 style={{marginTop:0}}>Welcome to Yoga-Do</h2>
           <div style={{display:'flex', gap:8, marginBottom:14}}>
-            <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>setMode('login')}>Sign In</button>
-            <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>setMode('register')}>Register</button>
+            <button className={`btn ${mode==='login' ? 'primary' : ''}`} onClick={()=>{ setMode('login'); setAuthError(null); setSuccessMsg(null) }}>Sign In</button>
+            <button className={`btn ${mode==='register' ? 'primary' : ''}`} onClick={()=>{ setMode('register'); setAuthError(null); setSuccessMsg(null) }}>Register</button>
           </div>
+          {authError && (
+            <div role="alert" style={{color:'#fecaca', fontSize:13, marginBottom:10, padding:'8px 10px', background:'rgba(239,68,68,0.08)', borderRadius:6, border:'1px solid rgba(239,68,68,0.18)'}}>
+              {authError.split('\n').map((line, i) => <div key={i}>{line}</div>)}
+            </div>
+          )}
+          {successMsg && (
+            <div role="status" style={{color:'#4ade80', fontSize:15, fontWeight:600, marginBottom:10, padding:'10px 12px', background:'rgba(74,222,128,0.08)', borderRadius:6, border:'1px solid rgba(74,222,128,0.22)', textAlign:'center'}}>
+              {successMsg}
+            </div>
+          )}
           <form onSubmit={mode==='register' ? doRegister : doLoginLocal}>
             <input className="login-input" placeholder="Username" value={username} onChange={e=>setUsername(e.target.value)} />
             {mode==='register' && <input className="login-input" placeholder="Email (optional)" value={email} onChange={e=>setEmail(e.target.value)} />}
             <input className="login-input" placeholder="Password" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
             <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:12}}>
-              <button className="btn" type="button" onClick={()=>{ setUsername(''); setPassword(''); setEmail('') }}>Clear</button>
-              <button className="btn primary" type="submit">{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register' : 'Sign In')}</button>
+              <button className="btn" type="button" onClick={()=>{ setUsername(''); setPassword(''); setEmail(''); setAuthError(null); setSuccessMsg(null) }}>Clear</button>
+              <button className="btn primary" type="submit" disabled={!!successMsg}>{loadingAuth? 'Please wait...' : (mode==='register' ? 'Register' : 'Sign In')}</button>
             </div>
           </form>
         </div>
@@ -320,7 +361,7 @@ export default function App() {
       <ErrorBoundary>
       <>
       <div className="header">
-        <div className="brand">Task Manager</div>
+        <div className="brand">Yoga-Do</div>
         <div className="controls" style={{display:'flex', alignItems:'center', gap:12}}>
           <div className="small">Signed in as {user.username}</div>
           <button className={`btn logout-btn ${loggingOut ? 'loggingOut' : ''}`} onClick={async ()=>{ setLoggingOut(true); try { await logout(); setUser(null) } catch (e:any) { setLoggingOut(false); console.error(e) } }}>Logout</button>
@@ -352,21 +393,13 @@ export default function App() {
 </button>
     </div>
 
-    <div style={{display:'flex', gap:8}}>
+    <div style={{display:'flex', gap:8, alignItems:'center'}}>
         <button className="btn" onClick={prevMonth}>Prev</button>
         <button className="btn" onClick={nextMonth}>Next</button>
+        <button className="btn create-task-btn" onClick={()=>openCreateFor(activeDate.toISOString())}>
+          + Create Task
+        </button>
       </div>
-
-  </div>
-
- 
-  <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:'16px', marginBottom:'12px'}}>
-
-    <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8}}>
-      <button className="btn create-task-btn" onClick={()=>openCreateFor(viewDate.toISOString())}>
-        + Create Task
-      </button>
-    </div>
 
   </div>
         {timerMounted && (
@@ -381,14 +414,14 @@ export default function App() {
 )}
         {(view === 'month' || view === 'week' || view === 'day') && (
           <div className="top-left-header">
-            <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, viewDate)}</div>
+            <div className={`date-header ${headerAnimate ? 'animate' : ''}`} aria-live="polite" aria-atomic="true">{headerTitleForView(view, activeDate)}</div>
             <div className="occurrences-count">Occurrences ({occ?.length ?? 0})</div>
           </div>
         )}
         {view === 'month' && (
           <MonthView
             occurrences={occ || []}
-            monthDate={monthDate}
+            monthDate={monthViewDate}
             onDayClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
@@ -397,7 +430,7 @@ export default function App() {
         {view === 'week' && (
           <WeekView
             occurrences={occ || []}
-            weekDate={monthDate}
+            weekDate={weekViewDate}
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
@@ -406,7 +439,7 @@ export default function App() {
         {view === 'day' && (
           <DayView
             occurrences={occ || []}
-            dayDate={toYMDLocal(monthDate)}
+            dayDate={toYMDLocal(dayViewDate)}
             onSlotClick={openCreateFor}
             onOccurrenceClick={openEditFor}
             onToggleStatus={toggleDone}
@@ -430,6 +463,7 @@ export default function App() {
           <TaskModal
             open={modalOpen}
             initialDate={modalDate}
+            initialPriority={modalPriority}
             task={editingTask}
             onClose={handleCloseModal}
             onSaved={handleSaved}

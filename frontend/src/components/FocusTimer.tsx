@@ -23,15 +23,17 @@ export default function FocusTimer({
   const [completed, setCompleted] = useState(false)
   const timerRef = useRef<number | null>(null)
 
-  // update remaining when minutes/seconds changed (only when not running)
+  // Sync remaining/total when the user manually edits the inputs.
+  // Intentionally excludes `running` from deps: we must NOT reset remaining
+  // when `running` flips to false (Pause), because that would behave like Reset.
+  // Inputs are disabled while running, so this effect only fires on real edits.
   useEffect(() => {
-    if (!running) {
-      const t = Math.max(0, (parseInt(String(minutes)) || 0) * 60 + (parseInt(String(seconds)) || 0))
-      setRemaining(t)
-      setTotal(t)
-      setCompleted(false)
-    }
-  }, [minutes, seconds, running])
+    const t = Math.max(0, (parseInt(String(minutes)) || 0) * 60 + (parseInt(String(seconds)) || 0))
+    setRemaining(t)
+    setTotal(t)
+    setCompleted(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minutes, seconds])
 
   useEffect(() => {
     if (running) {
@@ -109,7 +111,7 @@ export default function FocusTimer({
       background:'rgba(7,16,39,.45)',
       zIndex:1200
     }}>
-      <div style={{width:480, background:'#071027', padding:18, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', gap:12, position:'relative'}}>
+      <div style={{width:600, background:'#071027', padding:24, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', gap:12, position:'relative'}}>
         <div style={{position:'relative', width:size, height:size}}>
           <svg width={size} height={size}>
             <g transform={`rotate(-90 ${size/2} ${size/2})`}>
@@ -140,13 +142,18 @@ export default function FocusTimer({
   <button
     className="btn primary"
     onClick={() => {
-      if (remaining <= 0) setRemaining((minutes * 60) + seconds)
-      setTotal((minutes * 60) + seconds)
+      if (remaining <= 0) {
+        // Starting fresh (session finished or never started)
+        const t = (minutes * 60) + seconds
+        setRemaining(t)
+        setTotal(t)
+      }
+      // Otherwise just resume — keep remaining and total as-is
       setRunning(true)
       setCompleted(false)
     }}
   >
-    Start
+    {remaining > 0 && total > 0 && remaining < total ? 'Resume' : 'Start'}
   </button>
 ) : (
   <button

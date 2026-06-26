@@ -9,7 +9,7 @@
 html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background: linear-gradient(180deg,#071027 0%, #07101a 100%); color:#e6eef8 }
 .app { max-width:1100px; margin:28px auto; padding:20px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); box-shadow: 0 6px 30px rgba(2,6,23,0.7); box-sizing:border-box;}
 .header { display:flex; align-items:center; justify-content:space-between }
-.brand { font-size:20px; font-weight:700; color:var(--accent) }
+.brand { font-size:24px; font-weight:800; color:var(--accent) }
 .controls { display:flex; gap:8px; align-items:center }
 .btn { background:var(--glass); border:1px solid rgba(255,255,255,0.04); color:inherit; padding:8px 12px; border-radius:8px; cursor:pointer; transition: transform .15s ease, border-color .15s ease, background .15s ease }
 .btn:hover { transform: translateY(-1px); }
@@ -25,7 +25,7 @@ html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -ap
 .day-number { font-size:13px; font-weight:600 }
 .today { outline: 2px dashed rgba(124,58,237,0.4); }
 .occ-item { background: rgba(124,58,237,0.08); padding:3px 6px; border-radius:6px; margin-bottom:4px; font-size:12px; color:#dfe7ff }
-.login-input { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:transparent; color:inherit; margin-right:8px }
+.login-input { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:inherit; margin-right:8px }
 
 .create-task-btn {
   background: linear-gradient(
@@ -55,7 +55,7 @@ html,body,#root { min-height:100vh; margin:0; font-family: Inter, system-ui, -ap
 .date-header.animate { transform: scale(1.08); font-weight:800; color:#ffffff; text-shadow: 0 6px 18px rgba(124,58,237,0.12) }
 
 /* Priority select styling */
-.priority-select { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.04); background:var(--glass); color:inherit; min-width:140px }
+.priority-select { padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:var(--glass); color:inherit; min-width:140px }
 .priority-select:focus { outline:none; box-shadow: 0 6px 18px rgba(124,58,237,0.08) }
 
 /* Auth modal styling */
@@ -148,7 +148,7 @@ select, .login-input, .templates-select { background-clip: padding-box }
 
 .react-datepicker__day--outside-month.app-day-custom-selected { opacity: 1; color: white }
 
-.react-datepicker__day--today { border:1px solid rgba(124,58,237,0.25); border-radius:6px }
+.react-datepicker__day--today { border:2px solid rgba(124,58,237,0.75); border-radius:6px }
 
 .date-picker-wrapper { display:inline-block }
 .react-datepicker__month-container { border-radius: 8px }
@@ -198,3 +198,8 @@ select, .login-input, .templates-select { background-clip: padding-box }
 .timer-close-btn{background:rgba(255,255,255,.04);}
 .timer-close-btn:hover{background:#dc2626;color:white;transform:translateY(-1px);}
 .timer-close-btn:active{background:#b91c1c;color:white;}
+
+/* Hide number input spinner arrows for occurrence count inputs */
+input.no-spinner::-webkit-outer-spin-button,
+input.no-spinner::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+input.no-spinner[type=number] { -moz-appearance:textfield; }

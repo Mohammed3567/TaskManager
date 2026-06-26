@@ -74,7 +74,7 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
                   </div>
                   <div className="small">{sectionItems.length} tasks</div>
                 </div>
-                <button className="btn" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate)}>
+                <button className="btn" type="button" onClick={() => onSlotClick && onSlotClick(defaultDate, priority.key)}>
                   New
                 </button>
               </div>
@@ -82,7 +82,7 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
                 <div className="small">No tasks in this priority yet.</div>
               ) : (
                 sectionItems.map((item: any) => (
-                  <div key={item.task_id + item.date} style={{ display: 'flex', alignItems: 'center', gap: 8, padding:'8px', borderRadius:10, background:'rgba(255,255,255,0.02)', marginBottom:6 }}>
+                  <div key={item.task_id + item.date} style={{ display: 'flex', alignItems: 'center', gap: 8, padding:'8px', borderRadius:10, background:'rgba(255,255,255,0.02)', marginBottom:6, minWidth:0 }}>
                     <input
                       type="checkbox"
                       checked={item.status === 'COMPLETED'}
@@ -93,9 +93,9 @@ export default function DayView({ occurrences, dayDate, onSlotClick, onOccurrenc
                         if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, occurrenceKey, Boolean(item.is_recurring), e.target.checked)
                       }}
                     />
-                    <div style={{ flex: 1, display:'flex', justifyContent:'space-between', cursor:'pointer' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date, item)}>
-                      <span>{formatTime(item.date)}</span>
-                      <span style={{ marginLeft: 8, flex: 1, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>{item.title}</span>
+                    <div style={{ flex: 1, minWidth: 0, display:'flex', justifyContent:'space-between', cursor:'pointer' }} onClick={() => onOccurrenceClick && onOccurrenceClick(item.task_id, item.date, item)}>
+                      <span style={{ flexShrink: 0 }}>{formatTime(item.date)}</span>
+                      <span style={{ marginLeft: 8, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>{item.title}</span>
                     </div>
                   </div>
                 ))

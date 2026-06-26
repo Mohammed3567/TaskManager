@@ -122,7 +122,10 @@ class TaskViewSet(viewsets.ModelViewSet):
             override_data = override_data or {}
             if isinstance(override_data, dict) and override_data.get('status') == 'DONE':
                 override_data['status'] = 'COMPLETED'
-            exception.override_data = override_data
+            # Merge into existing override data so previously saved fields
+            # (edited date, title, priority, …) are never discarded.
+            existing = exception.override_data or {}
+            exception.override_data = {**existing, **override_data}
         exception.save()
         return exception
 

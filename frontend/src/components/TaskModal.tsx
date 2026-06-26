@@ -57,10 +57,10 @@ function browserTimezone() {
 
 // helper to convert ISO -> YYYY-MM-DD for date inputs
 
-export default function TaskModal({ open, onClose, onSaved, initialDate, task }: any) {
+export default function TaskModal({ open, onClose, onSaved, initialDate, task, initialPriority }: any) {
   const [title, setTitle] = useState(task?.title || '')
   const [date, setDate] = useState<Date | null>(task?.date ? isoToDate(task.date) : (initialDate ? isoToDate(initialDate) : null))
-  const [priority, setPriority] = useState(task?.priority || 'ROUTINE')
+  const [priority, setPriority] = useState(task?.priority || initialPriority || 'ROUTINE')
   const [isRecurring, setIsRecurring] = useState(task?.is_recurring ?? false)
   const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('DAILY')
   const [repeatDays, setRepeatDays] = useState<string[]>([])
@@ -100,8 +100,9 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task }:
       setRepeatFrequency('DAILY')
       setRepeatDays([weekdayCode(initial)])
       setRepeatCount(5)
+      setPriority(initialPriority || 'ROUTINE')
     }
-  }, [initialDate, task])
+  }, [initialDate, task, initialPriority])
 
   useEffect(() => {
     if (isRecurring && repeatFrequency === 'WEEKLY' && repeatDays.length === 0 && date) {
@@ -179,7 +180,7 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task }:
             <DatePicker
               selected={date}
               onChange={(d: Date | null) => setDate(d)}
-              dateFormat="yyyy-MM-dd"
+              dateFormat="dd-MM-yyyy"
               className="login-input"
               wrapperClassName="date-picker-wrapper"
               calendarClassName="react-datepicker-dark"
@@ -219,7 +220,7 @@ export default function TaskModal({ open, onClose, onSaved, initialDate, task }:
                     </div>
                   )}
                   <input
-                    className="login-input"
+                    className="login-input no-spinner"
                     type="number"
                     min={1}
                     placeholder="Occurrences"

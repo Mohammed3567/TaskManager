@@ -72,9 +72,9 @@ export default function WeekView({ occurrences, weekDate, onSlotClick, onOccurre
                           if (typeof onToggleStatus === 'function') onToggleStatus(item.task_id, occurrenceKey, Boolean(item.is_recurring), e.target.checked)
                         }}
                       />
-                      <div style={{ flex: 1, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>
+                      <div style={{ flex: 1, minWidth: 0, textDecoration: item.status === 'COMPLETED' ? 'line-through' : 'none' }}>
                         <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 2 }}>{formatTime(item.date)}</div>
-                        <div>{item.title}</div>
+                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
                       </div>
                     </div>
                   </div>

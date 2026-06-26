@@ -85,7 +85,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
               </div>
               <div style={{marginTop:8}}>
                 {items.slice(0,3).map(it => (
-                  <div key={it.task_id + it.date} className={`occ-item ${it.priority?.toLowerCase()}`} style={{display:'flex', alignItems:'center', gap:8}}>
+                  <div key={it.task_id + it.date} className={`occ-item ${it.priority?.toLowerCase()}`} style={{display:'flex', alignItems:'center', gap:8, minWidth:0}}>
                     <input
                       type="checkbox"
                       checked={it.status === 'COMPLETED'}
@@ -97,7 +97,7 @@ export default function MonthView({ occurrences, monthDate, onDayClick, onOccurr
                       }}
                     />
                     <div
-                      style={{flex:1, textDecoration: it.status === 'COMPLETED' ? 'line-through' : 'none', cursor:'pointer'}}
+                      style={{flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textDecoration: it.status === 'COMPLETED' ? 'line-through' : 'none', cursor:'pointer'}}
                       onClick={e => { e.stopPropagation(); if (typeof onOccurrenceClick === 'function') onOccurrenceClick(it.task_id, it.date, it) }}
                     >
                       {it.title}

@@ -52,11 +52,32 @@ function buildRecurrenceRule(freq: string, count: number, days: string[]) {
 }
 
 function snapToWeekday(d: Date, dayCode: string) {
-  const targetIdx = WEEKDAY_CODES.indexOf(dayCode)
+  const targetIdx = WEEKDAY_CODES.indexOf(dayCode) // equals JS getDay() value
   if (targetIdx < 0) return new Date(d)
   const result = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  // Move forward to the next occurrence of the target weekday (0 if already on it)
-  const diff = (targetIdx - result.getDay() + 7) % 7
+  const currentDay = result.getDay()
+  // Convert both days to Monday-based offsets (Mon=0 … Sun=6) so we can
+  // compute a signed difference that may be negative (move earlier in the week).
+  const currentMon = (currentDay + 6) % 7
+  const targetMon  = (targetIdx  + 6) % 7
+  const diff = targetMon - currentMon   // negative = move back, positive = move forward
+  result.setDate(result.getDate() + diff)
+  return result
+}
+
+// Returns the first date that falls on `dayCode` ON OR AFTER `startDate`.
+// Always moves forward (never before startDate), making it safe to use as
+// the series anchor when the user changes the weekday for "Save Series".
+// This is intentionally separate from snapToWeekday (which does same-week
+// movement and is used for single-occurrence date editing).
+function firstWeekdayOnOrAfter(startDate: Date, dayCode: string): Date {
+  const targetIdx = WEEKDAY_CODES.indexOf(dayCode) // equals JS getDay() value
+  if (targetIdx < 0) return new Date(startDate)
+  const result = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
+  const currentDay = result.getDay()
+  // (targetIdx - currentDay + 7) % 7 is 0 when already on the target day,
+  // otherwise gives the positive number of days to advance.
+  const diff = (targetIdx - currentDay + 7) % 7
   result.setDate(result.getDate() + diff)
   return result
 }
@@ -134,6 +155,10 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     setRepeatDays([day])
   }
 
+  // When editing an existing weekly series the weekday must not change.
+  // `task.id` being present means we are editing (not creating).
+  const weekdayLocked = !!(task?.id) && repeatFrequency === 'WEEKLY'
+
   if (!open) return null
 
   async function save(e: React.FormEvent) {
@@ -172,7 +197,11 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
     const reference = seriesDate || date
     let anchor = reference
     if (repeatFrequency === 'WEEKLY' && repeatDays.length && reference) {
-      anchor = snapToWeekday(reference, primaryWeekday(repeatDays))
+      // Use firstWeekdayOnOrAfter so the anchor is never earlier than the
+      // original series start date (reference).  snapToWeekday (same-week,
+      // signed diff) is intentionally NOT used here because it can produce a
+      // date before the series start (e.g. Friday→Monday moves back 4 days).
+      anchor = firstWeekdayOnOrAfter(reference, primaryWeekday(repeatDays))
       if (seriesDate) {
         anchor.setHours(seriesDate.getHours(), seriesDate.getMinutes(), seriesDate.getSeconds(), 0)
       }
@@ -292,7 +321,7 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
             <DatePicker
               selected={date}
               onChange={(d: Date | null) => setDate(d)}
-              dateFormat="yyyy-MM-dd"
+              dateFormat="dd-MM-yyyy"
               className="login-input"
               wrapperClassName="date-picker-wrapper"
               calendarClassName="react-datepicker-dark"
@@ -317,15 +346,32 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
             </select>
             {repeatFrequency === 'WEEKLY' && (
               <div style={{display:'flex', gap:6, flexWrap:'wrap', alignItems:'center'}}>
-                {WEEKDAY_CODES.map(day => (
-                  <button key={day} type="button" className={`btn ${repeatDays.includes(day) ? 'active' : ''}`} onClick={() => toggleRepeatDay(day)} style={{padding:'6px 10px', minWidth:40}}>
-                    {day}
-                  </button>
-                ))}
+                {WEEKDAY_CODES.map(day => {
+                  const isSelected = repeatDays.includes(day)
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      className={`btn ${isSelected ? 'active' : ''}`}
+                      onClick={() => { if (!weekdayLocked) toggleRepeatDay(day) }}
+                      style={{
+                        padding: '6px 10px',
+                        minWidth: 40,
+                        // When locked: selected day looks normal; others are dimmed and unclickable
+                        ...(weekdayLocked && isSelected  ? { cursor: 'default' } : {}),
+                        ...(weekdayLocked && !isSelected ? { opacity: 0.3, pointerEvents: 'none' as const } : {}),
+                      }}
+                      title={weekdayLocked ? 'Weekday is fixed for this series' : undefined}
+                    >
+                      {day}
+                    </button>
+                  )
+                })}
+                
               </div>
             )}
             <input
-              className="login-input"
+              className="login-input no-spinner"
               type="number"
               min={1}
               placeholder="Occurrences"
@@ -335,24 +381,35 @@ export default function RecurringTaskModal({ open, onClose, onSaved, task, occur
                 const n = parseInt(e.target.value, 10)
                 if (!isNaN(n)) setRepeatCount(n)
               }}
-              style={{width:140}}
+              style={{width:140, boxSizing:'border-box'}}
             />
           </div>
-          <div style={{display:'flex', gap:8, justifyContent:'flex-end', flexWrap:'wrap'}}>
-            <button type="button" className="btn" onClick={onClose}>Cancel</button>
-            <button type="button" className="btn secondary" onClick={saveInstance} disabled={instanceSaving}>
-              {instanceSaving ? 'Saving occurrence...' : 'Save occurrence'}
-            </button>
-            <button type="button" className="btn danger" onClick={openInstanceDeleteConfirm} disabled={instanceSaving}>
-              Delete occurrence
-            </button>
-            <button type="button" className="btn danger" onClick={openTaskDeleteConfirm}>
-              Delete series
-            </button>
-            <button className="btn primary" type="submit">
-              <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-              {saving? 'Saving series...':'Save series'}
-            </button>
+          {/* Outer div: right-aligns the whole group */}
+          <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:8, marginTop:8}}>
+            {/*
+              Inner wrapper shrinks to the grid's natural width (148×2 + 8 gap = 304 px)
+              so that Cancel's width:100% matches the two buttons above it exactly.
+            */}
+            <div style={{display:'inline-flex', flexDirection:'column', gap:8}}>
+              {/* 2×2 grid — 148 px per column fits "Delete occurrence" comfortably */}
+              <div style={{display:'grid', gridTemplateColumns:'repeat(2, 148px)', gap:8}}>
+                <button type="button" className="btn primary" onClick={saveInstance} disabled={instanceSaving}>
+                  {instanceSaving ? 'Saving occurrence...' : 'Save occurrence'}
+                </button>
+                <button type="button" className="btn danger" onClick={openInstanceDeleteConfirm} disabled={instanceSaving}>
+                  Delete occurrence
+                </button>
+                <button className="btn primary" type="submit">
+                  <svg className="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  {saving ? 'Saving series...' : 'Save series'}
+                </button>
+                <button type="button" className="btn danger" onClick={openTaskDeleteConfirm}>
+                  Delete series
+                </button>
+              </div>
+              {/* Cancel spans the full width of the 2×2 grid above */}
+              <button type="button" className="btn" onClick={onClose} style={{width:'100%'}}>Cancel</button>
+            </div>
           </div>
         </form>
       </div>
