@@ -1,4 +1,4 @@
-const API_BASE = 'http://13.203.248.62:8000'
+const API_BASE = 'https://yoga-do-api.onrender.com'
 
 // Maps raw API error text to clean, human-readable messages.
 function formatLoginError(txt: string): string {
