@@ -79,18 +79,20 @@ REST_FRAMEWORK = {
     ],
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
 
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5176',
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5176",
+    "https://yoga-do.vercel.app",
 ]
 
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5176',
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5176",
+    "https://yoga-do.vercel.app",
 ]
