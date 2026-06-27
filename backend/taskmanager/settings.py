@@ -96,3 +96,9 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5176",
     "https://yoga-do.vercel.app",
 ]
+
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "None"
+
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_SAMESITE = "None"
